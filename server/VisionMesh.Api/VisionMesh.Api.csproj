@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>VisionMesh.Api</AssemblyName>
+    <RootNamespace>VisionMesh.Api</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\VisionMesh.Core\VisionMesh.Core.csproj" />
+    <ProjectReference Include="..\VisionMesh.Database\VisionMesh.Database.csproj" />
+    <ProjectReference Include="..\VisionMesh.Streaming\VisionMesh.Streaming.csproj" />
+    <ProjectReference Include="..\VisionMesh.Recording\VisionMesh.Recording.csproj" />
+    <ProjectReference Include="..\VisionMesh.HomeAssistant\VisionMesh.HomeAssistant.csproj" />
+  </ItemGroup>
+</Project>

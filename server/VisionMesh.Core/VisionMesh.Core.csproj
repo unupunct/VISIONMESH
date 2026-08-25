@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>VisionMesh.Core</AssemblyName>
+    <RootNamespace>VisionMesh.Core</RootNamespace>
+  </PropertyGroup>
+</Project>

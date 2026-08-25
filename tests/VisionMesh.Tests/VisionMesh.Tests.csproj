@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>VisionMesh.Tests</AssemblyName>
+    <RootNamespace>VisionMesh.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\server\VisionMesh.Core\VisionMesh.Core.csproj" />
+    <ProjectReference Include="..\..\server\VisionMesh.Database\VisionMesh.Database.csproj" />
+    <ProjectReference Include="..\..\server\VisionMesh.Streaming\VisionMesh.Streaming.csproj" />
+    <ProjectReference Include="..\..\server\VisionMesh.Recording\VisionMesh.Recording.csproj" />
+    <ProjectReference Include="..\..\server\VisionMesh.Api\VisionMesh.Api.csproj" />
+    <ProjectReference Include="..\..\agents\shared\VisionMesh.Agent.Core\VisionMesh.Agent.Core.csproj" />
+  </ItemGroup>
+</Project>
