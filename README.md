@@ -106,7 +106,7 @@ is aspirational.
 | ONVIF discovery and PTZ | Built, not run against a real camera | ONVIF client is hand-written SOAP |
 | Recording and playback | Working | The published 1.0.1 build recorded a webcam, was hard-killed mid-write, and the segment still decoded 947 frames |
 | Motion detection | Working | Fired on a live camera and started a recording; decoder tested against real encoder output |
-| Home Assistant integration | Built, not run inside Home Assistant | Python syntax-checked; API it consumes is tested |
+| Home Assistant integration | Working | Loaded into Home Assistant 2026.2.3 in CI: 40 tests over the config flow and entities, plus hassfest |
 | MQTT discovery | Built, not run against a broker | — |
 
 **Deliberately not built yet**

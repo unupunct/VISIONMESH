@@ -7,8 +7,25 @@ and this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+
+- The Home Assistant integration is now loaded into a real Home Assistant and exercised in CI —
+  the config flow a user walks through, and the entities that come out of it — alongside hassfest,
+  Home Assistant's own validator. It could not be checked on the machine it was written on,
+  because Home Assistant core does not install on Windows. A further test reads the C# endpoint
+  that builds the camera list and fails if the test payloads and the server have drifted apart,
+  which is the usual way a mocked integration test passes while the real thing is broken.
+
 ### Fixed
 
+- The Home Assistant config flow no longer accepts an address that cannot work. `http://` became
+  `http://http:` because trimming trailing slashes ate the scheme's own; `not a url` was accepted
+  because urlparse will call anything without a slash a hostname; and a port above 65535 raised
+  out of the flow as a traceback rather than a message on the form. An address accepted here and
+  failing later reads as "cannot connect", which sends someone to look at their network instead
+  of at what they typed. The address is now rebuilt from its parsed parts, so a path, a query or
+  credentials in it cannot survive into the base URL every later request is built from. Found by
+  running the integration inside Home Assistant.
 - Agents now report the version they actually are. It was a hand-written constant in each agent,
   and it drifted: the 1.0.1 agent introduced itself to the server as 1.0.0, so the Devices page —
   the one place a user looks to decide whether an agent needs updating — showed a version that was
