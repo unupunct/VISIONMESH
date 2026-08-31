@@ -23,6 +23,7 @@ public sealed class RecordingIndexer(
     SettingsRepository settings,
     EventRepository events,
     StorageManager storage,
+    RecordingEngine engine,
     IRealtimeNotifier notifier,
     ILogger<RecordingIndexer> log) : BackgroundService
 {
@@ -112,7 +113,10 @@ public sealed class RecordingIndexer(
                     StartUtc = start.ToUniversalTime(),
                     EndUtc = new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero),
                     SizeBytes = info.Length,
-                    Trigger = RecordingTrigger.Continuous,
+                    // The file itself carries no clue about what caused the recording, so the
+                    // engine is asked what it was doing when this segment began. Assuming
+                    // Continuous here would label every motion clip wrongly in the timeline.
+                    Trigger = engine.TriggerAt(camera.Id, start.ToUniversalTime()),
                     Closed = true,
                 };
                 segment.Id = recordings.Insert(segment);

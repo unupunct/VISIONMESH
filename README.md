@@ -93,17 +93,17 @@ is aspirational.
 
 | Component | State | Verified how |
 |---|---|---|
-| Server (Windows, Linux) | Working | Runs, 50 automated tests, driven through a browser |
+| Server (Windows, Linux) | Working | Runs, 53 automated tests, driven through a browser |
 | Web dashboard | Working | Every page exercised in a real browser |
 | Pairing, devices, camera CRUD | Working | End-to-end tests pair a device and add its camera |
 | Live streaming (MJPEG) | Working | End-to-end tests read real frames off the stream endpoint |
-| Windows agent — camera discovery | Working | Verified against a real Logitech BRIO |
-| Windows agent — capture | Built, not run against a live camera | Media Foundation interop; enumeration proven on hardware |
+| Windows agent — discovery and capture | Working | Ran against a real Logitech BRIO: 720p15 MJPEG forwarded without re-encoding |
+| Privacy mode | Working | Verified on real hardware: camera released within a second, stream and snapshot refused |
 | Linux agent | Built, not run on Linux hardware | V4L2 struct layouts asserted against kernel ioctl sizes |
 | Browser camera (phone) | Built, not run on a phone | Frame header verified as a cross-language contract |
-| RTSP / ONVIF cameras | Built, not run against a real camera | Needs ffmpeg; ONVIF client is hand-written SOAP |
-| Recording, retention, timeline | Built, not exercised | Needs ffmpeg, which was not installed on the build machine |
-| Motion detection | Working | JPEG decoder tested against real encoder output |
+| RTSP / ONVIF cameras | Built, not run against a real camera | ONVIF client is hand-written SOAP |
+| Recording and playback | Working | Recorded a real camera: valid H.264 MP4, indexed, seekable by range request |
+| Motion detection | Working | Fired on a live camera and started a recording; decoder tested against real encoder output |
 | Home Assistant integration | Built, not run inside Home Assistant | Python syntax-checked; API it consumes is tested |
 | MQTT discovery | Built, not run against a broker | — |
 

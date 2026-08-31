@@ -49,6 +49,21 @@ public sealed class RecordingEngine(
     private readonly ConcurrentDictionary<string, DateTimeOffset> _manual = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _gate = new(1, 1);
 
+    /// <summary>
+    /// Why each camera started recording, and when.
+    ///
+    /// ffmpeg writes segment files with nothing in them to say what caused the recording, so the
+    /// indexer cannot tell a motion clip from a continuous one by looking at the file. Without
+    /// this the recordings list and the timeline would label everything "Continuous", which is
+    /// exactly the kind of confidently wrong detail this project refuses to show.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, List<TriggerMark>> _triggerHistory = new(StringComparer.Ordinal);
+
+    /// <summary>How many recording reasons to remember per camera. A day of motion clips fits easily.</summary>
+    private const int TriggerHistoryLimit = 200;
+
+    private readonly record struct TriggerMark(DateTimeOffset At, RecordingTrigger Trigger);
+
     /// <summary>Whether ffmpeg was available on the last pass. Surfaced so the UI can explain itself.</summary>
     public bool RecordingAvailable { get; private set; }
 
@@ -190,6 +205,17 @@ public sealed class RecordingEngine(
                            camera.State != CameraState.Paused &&
                            (manual || motionActive || continuous);
 
+        // Note the reason at the moment recording begins, so the indexer can label the files this
+        // produces with what actually caused them rather than assuming.
+        var wasRecording = supervisor.RecordingCameras.ContainsKey(camera.Id);
+        if (shouldRecord && !wasRecording)
+        {
+            RecordTrigger(camera.Id, manual ? RecordingTrigger.Manual
+                                   : motionActive ? RecordingTrigger.Motion
+                                   : camera.RecordingMode == RecordingMode.Scheduled ? RecordingTrigger.Schedule
+                                   : RecordingTrigger.Continuous);
+        }
+
         if (shouldRecord) supervisor.RecordingCameras[camera.Id] = 0;
         else supervisor.RecordingCameras.TryRemove(camera.Id, out _);
 
@@ -231,6 +257,41 @@ public sealed class RecordingEngine(
         {
             await recorder.DisposeAsync().ConfigureAwait(false);
         }
+    }
+
+    private void RecordTrigger(string cameraId, RecordingTrigger trigger)
+    {
+        var history = _triggerHistory.GetOrAdd(cameraId, _ => new List<TriggerMark>());
+        lock (history)
+        {
+            history.Add(new TriggerMark(DateTimeOffset.UtcNow, trigger));
+            if (history.Count > TriggerHistoryLimit) history.RemoveRange(0, history.Count - TriggerHistoryLimit);
+        }
+    }
+
+    /// <summary>
+    /// Why a recording that began at <paramref name="startUtc"/> was started.
+    ///
+    /// Falls back to Continuous only when nothing is known, which is the honest default: a file
+    /// found with no matching reason was almost certainly written by a stream-copy recording that
+    /// started before this process did.
+    /// </summary>
+    public RecordingTrigger TriggerAt(string cameraId, DateTimeOffset startUtc)
+    {
+        if (!_triggerHistory.TryGetValue(cameraId, out var history)) return RecordingTrigger.Continuous;
+
+        lock (history)
+        {
+            // A segment belongs to the most recent reason recorded at or before it started. The
+            // small tolerance covers the gap between deciding to record and ffmpeg naming the file.
+            var tolerance = startUtc.AddSeconds(2);
+            for (var i = history.Count - 1; i >= 0; i--)
+            {
+                if (history[i].At <= tolerance) return history[i].Trigger;
+            }
+        }
+
+        return RecordingTrigger.Continuous;
     }
 
     private void OnMotionStarted(MotionWatcher watcher, double changedRatio)

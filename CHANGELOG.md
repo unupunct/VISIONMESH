@@ -7,6 +7,14 @@ and this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+
+- Recordings are now labelled with the reason they were made. The indexer previously marked every
+  segment Continuous, because an ffmpeg segment file carries nothing that says what caused it, so
+  a motion clip appeared in the recordings list and on the timeline as continuous footage. The
+  engine now records why each recording started and the indexer asks it. Found by recording a
+  live camera.
+
 ## [1.0.0] - 2026-08-31
 
 First release. Everything below is new.
