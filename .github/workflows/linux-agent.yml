@@ -1,0 +1,97 @@
+name: Linux agent
+
+# The Linux agent talks to the kernel through hand-written V4L2 ioctl interop, and until now the
+# only thing standing behind it was a test asserting struct sizes against the numbers encoded in
+# the ioctl requests. That catches a layout mistake; it cannot tell you whether the agent can
+# actually open a camera and get frames out of it.
+#
+# v4l2loopback gives the runner a real V4L2 capture device, fed by ffmpeg. Every ioctl the agent
+# issues goes through the kernel exactly as it would against a webcam.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "agents/linux/**"
+      - "agents/shared/**"
+      - "server/**"
+      - ".github/workflows/linux-agent.yml"
+  pull_request:
+    paths:
+      - "agents/linux/**"
+      - "agents/shared/**"
+      - "server/**"
+      - ".github/workflows/linux-agent.yml"
+  workflow_dispatch:
+
+jobs:
+  capture:
+    name: Capture from a real V4L2 device
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install ffmpeg and the loopback camera module
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg v4l-utils v4l2loopback-dkms linux-headers-$(uname -r)
+
+      - name: Create a video device
+        run: |
+          sudo modprobe v4l2loopback devices=1 video_nr=0 card_label=VisionMeshTestCamera exclusive_caps=1
+          ls -l /dev/video0
+          v4l2-ctl --list-devices
+          v4l2-ctl --device=/dev/video0 --all | head -40
+
+      - name: Feed the device a moving test pattern
+        run: |
+          # MJPEG, because that is the path the agent is built around: frames arrive already
+          # compressed and are forwarded without being decoded or re-encoded.
+          nohup ffmpeg -nostdin -re -f lavfi -i testsrc2=size=1280x720:rate=15 \
+            -pix_fmt yuvj422p -c:v mjpeg -q:v 5 -f v4l2 /dev/video0 \
+            > /tmp/ffmpeg-feed.log 2>&1 &
+          echo $! > /tmp/feed.pid
+          sleep 5
+          v4l2-ctl --device=/dev/video0 --list-formats-ext | head -20
+
+      - name: Build the agent and the server
+        run: |
+          dotnet build server/VisionMesh.Server/VisionMesh.Server.csproj -c Release
+          dotnet build agents/linux/VisionMesh.Agent.Linux/VisionMesh.Agent.Linux.csproj -c Release
+
+      # The first real question: does the agent's own enumeration find the device, through
+      # QUERYCAP and ENUM_FMT, and report a format it can actually use?
+      - name: The agent must find the camera
+        run: |
+          dotnet run --no-build -c Release \
+            --project agents/linux/VisionMesh.Agent.Linux/VisionMesh.Agent.Linux.csproj \
+            -- list | tee /tmp/list.txt
+
+          grep -q "VisionMeshTestCamera" /tmp/list.txt \
+            || { echo "::error::The agent did not find the loopback camera."; exit 1; }
+          grep -qi "MJPG" /tmp/list.txt \
+            || { echo "::error::The agent did not report the MJPEG format the device advertises."; exit 1; }
+
+      - name: Pair the agent and pull real frames through the server
+        run: |
+          chmod +x scripts/ci/linux-agent-capture.sh
+          ./scripts/ci/linux-agent-capture.sh
+
+      - name: Server and agent logs
+        if: always()
+        run: |
+          echo "──────── server ────────"; tail -60 /tmp/vm-server.log 2>/dev/null || true
+          echo "──────── agent ─────────"; tail -60 /tmp/vm-agent.log  2>/dev/null || true
+          echo "──────── ffmpeg ────────"; tail -20 /tmp/ffmpeg-feed.log 2>/dev/null || true
+
+      - name: Stop everything
+        if: always()
+        run: |
+          [ -f /tmp/feed.pid ] && sudo kill "$(cat /tmp/feed.pid)" 2>/dev/null || true
+          pkill -f VisionMesh || true
+          sudo modprobe -r v4l2loopback || true
