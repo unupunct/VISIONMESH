@@ -126,8 +126,8 @@ jobs:
       - name: Server and agent logs
         if: always()
         run: |
-          echo "──────── server ────────"; tail -60 /tmp/vm-server.log 2>/dev/null || true
-          echo "──────── agent ─────────"; tail -60 /tmp/vm-agent.log  2>/dev/null || true
+          echo "──────── server ────────"; tail -150 /tmp/vm-server.log 2>/dev/null || true
+          echo "──────── agent ─────────"; tail -80 /tmp/vm-agent.log  2>/dev/null || true
           echo "──────── ffmpeg ────────"; tail -20 /tmp/ffmpeg-feed.log 2>/dev/null || true
 
       - name: Stop everything

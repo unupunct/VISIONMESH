@@ -99,7 +99,12 @@ curl -s --max-time 12 -H "Authorization: Bearer ${TOKEN}" \
 
 SIZE=$(stat -c%s /tmp/stream.bin 2>/dev/null || echo 0)
 echo "captured ${SIZE} bytes from the stream endpoint"
-[ "$SIZE" -gt 20000 ] || fail "The stream produced ${SIZE} bytes, so no real video arrived."
+if [ "$SIZE" -le 20000 ]; then
+    echo "--- agent log ---"; tail -40 /tmp/vm-agent.log 2>/dev/null || true
+    echo "--- server log, capture and streaming only ---"
+    grep -iE "captur|stream|supervis|camera|v4l2|frame" /tmp/vm-server.log 2>/dev/null | tail -40 || true
+    fail "The stream produced ${SIZE} bytes, so no real video arrived."
+fi
 
 # Bytes are not frames. Count actual JPEG start-of-image markers, and confirm the payload is a
 # multipart MJPEG stream rather than an error page that happens to be long.
