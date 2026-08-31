@@ -39,11 +39,25 @@ jobs:
       - name: Install ffmpeg and the loopback camera module
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg v4l-utils v4l2loopback-dkms linux-headers-$(uname -r)
+          # linux-modules-extra carries videodev, whose symbols v4l2loopback links against; without
+          # it the module builds and then refuses to insert with "Unknown symbol in module".
+          sudo apt-get install -y ffmpeg v4l-utils v4l2loopback-dkms             "linux-headers-$(uname -r)" "linux-modules-extra-$(uname -r)" ||             sudo apt-get install -y ffmpeg v4l-utils v4l2loopback-dkms "linux-headers-$(uname -r)"
 
       - name: Create a video device
         run: |
-          sudo modprobe v4l2loopback devices=1 video_nr=0 card_label=VisionMeshTestCamera exclusive_caps=1
+          set -x
+          uname -r
+          dkms status || true
+
+          # v4l2loopback is a V4L2 *driver*, so the core has to be present first.
+          sudo modprobe videodev || echo "videodev not available as a module"
+
+          if ! sudo modprobe v4l2loopback devices=1 video_nr=0 card_label=VisionMeshTestCamera exclusive_caps=1; then
+              echo "::error::v4l2loopback would not load."
+              sudo dmesg | tail -30 || true
+              exit 1
+          fi
+
           ls -l /dev/video0
           v4l2-ctl --list-devices
           v4l2-ctl --device=/dev/video0 --all | head -40
