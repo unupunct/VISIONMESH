@@ -6,6 +6,12 @@
     <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <!--
+      Lets this project restore and compile on Linux, so `dotnet test` on the whole solution works
+      on a Linux CI runner. The result only *runs* on Windows, but being unable to even restore it
+      elsewhere would mean the solution could never be built in one command.
+    -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <ApplicationIcon>visionmesh.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
