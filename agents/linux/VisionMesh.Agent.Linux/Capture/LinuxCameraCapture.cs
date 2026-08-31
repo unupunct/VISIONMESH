@@ -388,6 +388,35 @@ public sealed class LinuxCameraCapture(ILogger log) : ICameraCapture
                   + $"{current.Width}x{current.Height}.";
         }
 
+        private bool _loggedFrameSize;
+
+        /// <summary>
+        /// Cuts a captured JPEG off at its end-of-image marker.
+        ///
+        /// A V4L2 buffer is allocated for the largest frame the format could produce, and plenty
+        /// of drivers hand back the whole buffer with the JPEG sitting at the front and padding
+        /// behind it. That padding is not part of the image: it wastes bandwidth on every single
+        /// frame, and a buffer big enough can push a frame past the server's message ceiling and
+        /// drop the connection.
+        ///
+        /// Returns the payload untouched when no marker is found, since a truncated frame is the
+        /// decoder's problem to report rather than something to guess at here.
+        /// </summary>
+        private static byte[] TrimToEndOfImage(byte[] payload)
+        {
+            // Scan back from the end: the marker is at the tail of the image, and the padding
+            // after it is usually zeroes.
+            for (var i = payload.Length - 2; i >= 1; i--)
+            {
+                if (payload[i] != 0xFF || payload[i + 1] != 0xD9) continue;
+
+                var length = i + 2;
+                return length == payload.Length ? payload : payload[..length];
+            }
+
+            return payload;
+        }
+
         private bool IsNativeJpeg => _pixelFormat == V4l2.V4L2_PIX_FMT_MJPEG || _pixelFormat == V4l2.V4L2_PIX_FMT_JPEG;
 
         private void SetFrameRate(int fps)
@@ -543,7 +572,16 @@ public sealed class LinuxCameraCapture(ILogger log) : ICameraCapture
         {
             if (IsNativeJpeg)
             {
-                return new CapturedFrame(payload, Width, Height, NativeJpeg: true);
+                var jpeg = TrimToEndOfImage(payload);
+
+                if (!_loggedFrameSize)
+                {
+                    _loggedFrameSize = true;
+                    _log.LogDebug("First frame: driver reported {Reported} bytes, JPEG is {Actual}.",
+                        payload.Length, jpeg.Length);
+                }
+
+                return new CapturedFrame(jpeg, Width, Height, NativeJpeg: true);
             }
 
             try

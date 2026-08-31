@@ -206,7 +206,9 @@ public sealed class AgentConnection : IAsyncDisposable
 
                     if (assembled.Length + result.Count > maxMessageBytes)
                     {
-                        _log.LogWarning("Agent {Device} sent an oversized message; dropping the connection.", DeviceId);
+                        _log.LogWarning(
+                            "Agent {Device} sent a message over the {Limit} byte ceiling ({Size} bytes so far); dropping the connection.",
+                            DeviceId, maxMessageBytes, assembled.Length + result.Count);
                         return;
                     }
                     assembled.Write(buffer, 0, result.Count);
