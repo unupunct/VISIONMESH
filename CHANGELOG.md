@@ -7,7 +7,31 @@ and this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Linux agent can now capture at all.** `v4l2_format` was declared with its pixel format
+  block starting at offset 4. The kernel's union there contains pointers, so on 64-bit it is eight
+  byte aligned and the block starts at offset 8. Every field landed one slot early — width into the
+  padding, height into width, the pixel format into height — and the kernel answered EINVAL for
+  every format offered. The agent reported "this camera offers no video format VisionMesh can use",
+  which sounds like a limited camera and was the agent describing its own broken struct. No Linux
+  camera could ever have worked. The size assertions could not catch it, because the struct is 208
+  bytes either way, and the offset test that existed asserted the wrong offsets.
+- Captured JPEGs are trimmed at their end-of-image marker. A V4L2 buffer is sized for the largest
+  frame the format could produce and many drivers return the whole thing with padding behind the
+  image: measured here, 3,686,400 bytes carrying a 60,334 byte JPEG. That padding cost bandwidth on
+  every frame and pushed frames past the server's message ceiling, which dropped the connection.
+- A camera that will not change format is no longer reported as a camera with no usable formats.
+  Each refusal is logged with the format and the driver's errno, and the failure asks the camera
+  what it is actually delivering, so "another program is using it" stops looking like "this camera
+  is unsupported".
+
 ### Added
+
+- The Linux agent now runs against a real V4L2 device in CI, using v4l2loopback fed by ffmpeg, so
+  every ioctl goes through the kernel as it would against a webcam. The check reads frames back off
+  the server's stream endpoint and decodes one for its real dimensions. It also confirms that a
+  camera the agent may not open is reported with the reason and the fix, rather than hidden.
 
 - Deleting recordings is now tested. It is the only code in VisionMesh that destroys something a
   user cannot get back, and it had no test: the retention window and its boundary, per-camera

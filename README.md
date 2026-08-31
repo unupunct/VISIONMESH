@@ -93,13 +93,13 @@ is aspirational.
 
 | Component | State | Verified how |
 |---|---|---|
-| Server (Windows, Linux) | Working | Runs, 83 automated tests, driven through a browser |
+| Server (Windows, Linux) | Working | Runs, 84 automated tests, driven through a browser |
 | Web dashboard | Working | Every page exercised in a real browser |
 | Pairing, devices, camera CRUD | Working | End-to-end tests pair a device and add its camera |
 | Live streaming (MJPEG) | Working | End-to-end tests read real frames off the stream endpoint |
 | Windows agent — discovery and capture | Working | Ran against a real Logitech BRIO: 720p15 MJPEG forwarded without re-encoding |
 | Privacy mode | Working | Verified on real hardware: camera released within a second, stream and snapshot refused |
-| Linux agent | Built, not run on Linux hardware | V4L2 struct layouts asserted against kernel ioctl sizes |
+| Linux agent | Working | Captured 300 frames from a real V4L2 device in CI, decoded back to 1280x720 |
 | Browser camera — pairing and protocol | Working | A browser paired and connected as a real agent, advertising its camera |
 | Browser camera — capture | Built, not run on a phone | Frame header verified as a cross-language contract |
 | RTSP cameras | Working | Pulled a live RTSP H.264 stream: transcoded for viewing, stream-copied for recording |
