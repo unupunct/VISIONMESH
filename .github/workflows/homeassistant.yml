@@ -30,7 +30,7 @@ jobs:
       # integration in core has to pass.
       - uses: home-assistant/actions/hassfest@master
         with:
-          path: "./homeassistant"
+          path: "./homeassistant/custom_components/visionmesh"
 
   tests:
     name: Run inside Home Assistant
@@ -48,7 +48,7 @@ jobs:
           pip install pytest-homeassistant-custom-component
 
       - name: Report the Home Assistant version actually being tested against
-        run: python -c "import homeassistant; print('Home Assistant', homeassistant.__version__)"
+        run: python -c "from homeassistant.const import __version__; print('Home Assistant', __version__)"
 
       - name: Run the integration inside Home Assistant
         working-directory: homeassistant
