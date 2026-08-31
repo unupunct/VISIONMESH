@@ -41,7 +41,10 @@ jobs:
       - name: Install ffmpeg and the loopback camera module
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg v4l-utils v4l2loopback-dkms "linux-headers-$(uname -r)"
+          # linux-modules-extra carries videodev.ko, the V4L2 core. v4l2loopback links against its
+          # symbols, so without it the module builds happily and then refuses to insert with a
+          # screenful of "Unknown symbol v4l2_*".
+          sudo apt-get install -y ffmpeg v4l-utils v4l2loopback-dkms             "linux-headers-$(uname -r)" "linux-modules-extra-$(uname -r)"
 
       - name: Create a video device
         run: |
@@ -50,7 +53,7 @@ jobs:
           dkms status || true
 
           # v4l2loopback is a V4L2 driver, so the core has to be loaded before it.
-          sudo modprobe videodev || echo "videodev is built in rather than a module"
+          sudo modprobe videodev
 
           if ! sudo modprobe v4l2loopback devices=1 video_nr=0 card_label=VisionMeshTestCamera exclusive_caps=1; then
               echo "::error::v4l2loopback would not load."
