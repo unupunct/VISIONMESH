@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from ipaddress import ip_address
 import logging
+import re
 from typing import Any
 from urllib.parse import urlparse
 
@@ -199,8 +201,12 @@ async def _async_validate(hass, url: str, username: str, password: str, verify_s
 
 
 def _normalise_url(value: str) -> str | None:
-    """Accepts what a person would actually type and turns it into a usable base URL."""
-    value = (value or "").strip().rstrip("/")
+    """Accepts what a person would actually type and turns it into a usable base URL.
+
+    Returns None for anything unusable, so the flow can say "that is not an address" on the form
+    rather than accepting it and failing later with a connection error that blames the network.
+    """
+    value = (value or "").strip()
     if not value:
         return None
 
@@ -209,7 +215,42 @@ def _normalise_url(value: str) -> str | None:
         value = f"http://{value}"
 
     parsed = urlparse(value)
-    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+    if parsed.scheme not in ("http", "https"):
         return None
 
-    return value
+    hostname = parsed.hostname
+    if not hostname or not _is_plausible_host(hostname):
+        return None
+
+    try:
+        port = parsed.port
+    except ValueError:
+        # urlparse only validates the port when it is read, and a number out of range raises.
+        return None
+
+    # Rebuilt rather than trimmed, so a trailing slash, a stray path, a query or credentials in
+    # the address cannot survive into the base URL every later request is built from.
+    host = f"[{hostname}]" if ":" in hostname else hostname
+    return f"{parsed.scheme}://{host}" + (f":{port}" if port else "")
+
+
+def _is_plausible_host(hostname: str) -> bool:
+    """Whether this could be a host at all, as opposed to a sentence someone typed."""
+    if ":" in hostname:
+        # urlparse strips the brackets from an IPv6 literal.
+        try:
+            ip_address(hostname)
+        except ValueError:
+            return False
+        return True
+
+    return _HOSTNAME.match(hostname) is not None
+
+
+# Labels of letters, digits and hyphens, separated by dots. Deliberately permissive about what a
+# name means and strict about what a name *is*: the old check accepted "not a url" because
+# urlparse is happy to call anything without a slash a hostname.
+_HOSTNAME = re.compile(
+    r"^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))*\.?$",
+    re.IGNORECASE,
+)

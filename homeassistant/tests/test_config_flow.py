@@ -180,17 +180,32 @@ async def test_zeroconf_ignores_a_server_already_configured(
 @pytest.mark.parametrize(
     ("typed", "expected"),
     [
+        # What people actually type.
         ("192.168.1.10:8088", "http://192.168.1.10:8088"),
         ("http://visionmesh.local:8088/", "http://visionmesh.local:8088"),
         ("https://cams.example.com", "https://cams.example.com"),
         ("  visionmesh.local:8088  ", "http://visionmesh.local:8088"),
+        ("HTTP://Cams.Example.COM/", "http://cams.example.com"),
+        ("http://[::1]:8088", "http://[::1]:8088"),
+        # Rebuilt, not trimmed: a path, a query or credentials in the address must not survive
+        # into the base URL that every later request is built from.
+        ("http://user:pw@host:8088/some/path?x=1", "http://host:8088"),
+        # Unusable, and each of these was once accepted.
         ("", None),
         ("ftp://nope", None),
-        ("http://", None),
+        ("http://", None),          # rstrip("/") ate the scheme and produced "http://http:"
+        ("not a url", None),        # urlparse will call anything without a slash a hostname
+        ("http://a b.com", None),
+        ("http://host:99999", None),  # reading the port raised, straight past the error handling
     ],
 )
 def test_url_normalisation_accepts_what_people_type(typed: str, expected: str | None) -> None:
-    """People type an address and a port far more often than a full URL."""
+    """People type an address and a port far more often than a full URL.
+
+    The rejections matter as much as the acceptances: an address that is accepted here and only
+    fails at connect time produces a "cannot connect" message, which sends the user looking at
+    their network instead of at what they typed.
+    """
     assert _normalise_url(typed) == expected
 
 

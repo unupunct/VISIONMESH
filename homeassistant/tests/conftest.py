@@ -10,7 +10,6 @@ the payloads the real server returns — the shapes are taken from
 from __future__ import annotations
 
 from collections.abc import Generator
-from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -18,7 +17,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from homeassistant.const import CONF_PASSWORD, CONF_URL, CONF_USERNAME
 
-from .payloads import STORAGE, SYSTEM, SERVER_URL, make_camera
+from .payloads import SERVER_URL, STORAGE, SYSTEM, make_camera
 
 pytest_plugins = "pytest_homeassistant_custom_component"
 
