@@ -7,6 +7,18 @@ and this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+
+- Deleting recordings is now tested. It is the only code in VisionMesh that destroys something a
+  user cannot get back, and it had no test: the retention window and its boundary, per-camera
+  overrides, "keep forever", the storage cap deleting oldest-first and saying so, and a row whose
+  file has already gone. The recordings in these tests are real files, so a test that says a file
+  was deleted means it is gone from disk.
+- Upgrading an existing database is now tested, including the invariant that migrations are
+  append-only. Editing a migration that has already shipped is silent and asymmetric — a fresh
+  install gets the edited schema, an existing install has already stamped that version and never
+  re-runs it — so each shipped migration is now fingerprinted and the test fails if one changes.
+
 ## [1.0.2] - 2026-08-31
 
 Fixes found by running the released 1.0.1 binaries against each other, and by running the Home

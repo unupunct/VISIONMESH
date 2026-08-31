@@ -93,7 +93,7 @@ is aspirational.
 
 | Component | State | Verified how |
 |---|---|---|
-| Server (Windows, Linux) | Working | Runs, 65 automated tests, driven through a browser |
+| Server (Windows, Linux) | Working | Runs, 83 automated tests, driven through a browser |
 | Web dashboard | Working | Every page exercised in a real browser |
 | Pairing, devices, camera CRUD | Working | End-to-end tests pair a device and add its camera |
 | Live streaming (MJPEG) | Working | End-to-end tests read real frames off the stream endpoint |

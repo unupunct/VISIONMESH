@@ -46,11 +46,7 @@ public sealed class RecordingIndexer(
         {
             try
             {
-                IndexNewSegments();
-                ApplyRetention();
-                ApplyStorageCap();
-                CheckFreeSpace();
-                PurgeOldEvents();
+                RunMaintenancePass();
             }
             catch (Exception ex)
             {
@@ -63,6 +59,22 @@ public sealed class RecordingIndexer(
     }
 
     /// <summary>Adds files that exist on disk but are not yet in the index.</summary>
+    /// <summary>
+    /// One full maintenance pass: index what has been written, then delete what should no longer
+    /// be kept.
+    ///
+    /// Public so it can be run directly. This deletes footage off disk, and logic that deletes a
+    /// user's recordings should be reachable by a test rather than only from inside a timer.
+    /// </summary>
+    public void RunMaintenancePass()
+    {
+        IndexNewSegments();
+        ApplyRetention();
+        ApplyStorageCap();
+        CheckFreeSpace();
+        PurgeOldEvents();
+    }
+
     private void IndexNewSegments()
     {
         var known = new HashSet<string>(
