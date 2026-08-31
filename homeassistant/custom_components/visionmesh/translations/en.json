@@ -1,0 +1,59 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to VisionMesh",
+        "description": "Enter the address of your VisionMesh server and a VisionMesh account to sign in with.\n\nA Viewer account is enough to see cameras. Use an Operator account if you want Home Assistant to control recording, privacy mode or camera movement.",
+        "data": {
+          "url": "Server address",
+          "username": "Username",
+          "password": "Password",
+          "verify_ssl": "Verify the certificate"
+        },
+        "data_description": {
+          "url": "For example http://192.168.1.10:8088",
+          "verify_ssl": "Turn this off only if your server uses a self-signed certificate."
+        }
+      },
+      "reauth_confirm": {
+        "title": "VisionMesh sign-in failed",
+        "description": "VisionMesh no longer accepts the saved account. Enter the details again.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not reach VisionMesh at that address. Check that the server is running and on the same network.",
+      "invalid_auth": "That username or password was not accepted.",
+      "invalid_url": "That does not look like a valid address. It usually looks like http://192.168.1.10:8088",
+      "unknown": "Something went wrong while connecting to VisionMesh."
+    },
+    "abort": {
+      "already_configured": "That VisionMesh server has already been added.",
+      "reauth_successful": "VisionMesh reconnected."
+    },
+    "flow_title": "{name}"
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Choose cameras",
+        "description": "{count} camera(s) are available. Choose which should appear in Home Assistant.",
+        "data": {
+          "cameras": "Cameras"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "fps": { "name": "Frame rate" },
+      "bitrate": { "name": "Bitrate" },
+      "latency": { "name": "Latency" },
+      "state": { "name": "State" },
+      "battery": { "name": "Battery" }
+    }
+  }
+}

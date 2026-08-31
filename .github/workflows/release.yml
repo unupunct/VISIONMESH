@@ -1,0 +1,232 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release, for example v1.0.0'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  # Nothing is published unless the tests pass. A surveillance release that was never tested is
+  # worse than no release at all.
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet test --configuration Release
+      - run: bash scripts/check-js.sh
+      - run: node scripts/verify-frame-header.mjs
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: test
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Server Windows x64
+            os: windows-latest
+            project: server/VisionMesh.Server
+            rid: win-x64
+            artifact: VisionMesh-Server-Windows-x64
+            archive: zip
+            docs: true
+          - name: Agent Windows x64
+            os: windows-latest
+            project: agents/windows/VisionMesh.Agent.Windows
+            rid: win-x64
+            artifact: VisionMesh-Agent-Windows-x64
+            archive: zip
+            docs: false
+          - name: Server Linux x64
+            os: ubuntu-latest
+            project: server/VisionMesh.Server
+            rid: linux-x64
+            artifact: VisionMesh-Server-Linux-x64
+            archive: tar
+            docs: true
+          - name: Server Linux arm64
+            os: ubuntu-latest
+            project: server/VisionMesh.Server
+            rid: linux-arm64
+            artifact: VisionMesh-Server-Linux-arm64
+            archive: tar
+            docs: true
+          - name: Agent Linux x64
+            os: ubuntu-latest
+            project: agents/linux/VisionMesh.Agent.Linux
+            rid: linux-x64
+            artifact: VisionMesh-Agent-Linux-x64
+            archive: tar
+            docs: false
+          - name: Agent Linux arm64
+            os: ubuntu-latest
+            project: agents/linux/VisionMesh.Agent.Linux
+            rid: linux-arm64
+            artifact: VisionMesh-Agent-Linux-arm64
+            archive: tar
+            docs: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Set the version
+        id: version
+        shell: bash
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "value=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish
+        shell: bash
+        run: |
+          dotnet publish "${{ matrix.project }}" \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:EnableCompressionInSingleFile=true \
+            -p:DebugType=none \
+            -p:Version=${{ steps.version.outputs.value }} \
+            -p:AssemblyVersion=${{ steps.version.outputs.value }}.0 \
+            -p:FileVersion=${{ steps.version.outputs.value }}.0 \
+            -o out
+
+      - name: Package
+        shell: bash
+        run: |
+          cp LICENSE out/ 2>/dev/null || true
+
+          if [ "${{ matrix.docs }}" = "true" ]; then
+            cp README.md INSTALL.md CHANGELOG.md out/ 2>/dev/null || true
+            cp -r docs out/docs 2>/dev/null || true
+          fi
+
+          # A predictable command name, so the documentation can name one thing.
+          if [ -f out/VisionMesh.Agent.Linux ]; then
+            mv out/VisionMesh.Agent.Linux out/visionmesh-agent
+            chmod +x out/visionmesh-agent
+            cp scripts/visionmesh-agent.service out/ 2>/dev/null || true
+          fi
+
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            7z a -tzip "${{ matrix.artifact }}.zip" ./out/*
+          else
+            tar -czf "${{ matrix.artifact }}.tar.gz" -C out .
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            *.zip
+            *.tar.gz
+
+  package-integration:
+    name: Package the Home Assistant integration
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cd homeassistant && zip -qr ../VisionMesh-HomeAssistant-Integration.zip custom_components
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VisionMesh-HomeAssistant-Integration
+          path: VisionMesh-HomeAssistant-Integration.zip
+
+  publish:
+    name: Publish the release
+    needs: [build, package-integration]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: downloaded
+
+      - name: Collect the artefacts
+        run: |
+          mkdir -p release
+          find downloaded -type f \( -name '*.zip' -o -name '*.tar.gz' \) -exec cp {} release/ \;
+          cd release && sha256sum ./* | sed 's|\./||' > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Write the release notes
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          {
+            echo "## VisionMesh ${TAG}"
+            echo
+            echo "Self-hosted camera and surveillance platform. No cloud, no account, no subscription."
+            echo
+            echo "### Install"
+            echo
+            echo "**Linux**"
+            echo '```bash'
+            echo "wget https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/install.sh"
+            echo "chmod +x install.sh"
+            echo "sudo ./install.sh"
+            echo '```'
+            echo
+            echo "**Windows** — download \`VisionMesh-Server-Windows-x64.zip\`, unzip it, run \`VisionMesh.Server.exe\`, then open http://localhost:8088"
+            echo
+            echo "**Phone** — nothing to install. Add a device on the server and scan the code with the phone."
+            echo
+            echo "### Downloads"
+            echo
+            echo "| File | For |"
+            echo "|---|---|"
+            echo "| \`VisionMesh-Server-Windows-x64.zip\` | The server, on Windows |"
+            echo "| \`VisionMesh-Server-Linux-x64.tar.gz\` | The server, on Linux |"
+            echo "| \`VisionMesh-Server-Linux-arm64.tar.gz\` | The server, on a Raspberry Pi or other arm64 machine |"
+            echo "| \`VisionMesh-Agent-Windows-x64.zip\` | Use a Windows PC's webcam as a camera |"
+            echo "| \`VisionMesh-Agent-Linux-x64.tar.gz\` | Use a Linux PC's webcam as a camera |"
+            echo "| \`VisionMesh-Agent-Linux-arm64.tar.gz\` | Use an arm64 Linux machine's webcam |"
+            echo "| \`VisionMesh-HomeAssistant-Integration.zip\` | The Home Assistant integration |"
+            echo "| \`SHA256SUMS.txt\` | Checksums for everything above |"
+            echo
+            echo "Every binary is self-contained: there is no runtime to install first."
+            echo
+            echo "### Verifying a download"
+            echo
+            echo '```bash'
+            echo "sha256sum -c SHA256SUMS.txt --ignore-missing"
+            echo '```'
+            echo
+            echo "### ffmpeg"
+            echo
+            echo "Needed for RTSP and ONVIF cameras and for recording. USB and phone cameras work without it."
+            echo "When it is missing, those features are switched off and labelled rather than failing when used."
+            echo
+            echo "See [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md) for what changed."
+          } > notes.md
+
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: VisionMesh ${{ github.event.inputs.tag || github.ref_name }}
+          body_path: notes.md
+          files: release/*
+          draft: false
+          prerelease: false

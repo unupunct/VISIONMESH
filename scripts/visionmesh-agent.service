@@ -1,0 +1,35 @@
+[Unit]
+Description=VisionMesh camera agent
+Documentation=https://github.com/unupunct/VISIONMESH/blob/main/docs/05-linux-camera.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# The agent needs to be in the 'video' group to open a camera. Change User to the account you
+# paired with, since the pairing token lives in that account's config directory.
+User=visionmesh-agent
+Group=visionmesh-agent
+SupplementaryGroups=video
+
+ExecStart=/opt/visionmesh-agent/visionmesh-agent
+WorkingDirectory=/opt/visionmesh-agent
+Restart=always
+RestartSec=10
+KillSignal=SIGTERM
+TimeoutStopSec=20
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+# Cameras are character devices under video4linux; without this the agent sees none.
+DeviceAllow=char-video4linux rw
+ReadWritePaths=/var/lib/visionmesh-agent
+
+[Install]
+WantedBy=multi-user.target

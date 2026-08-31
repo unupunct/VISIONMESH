@@ -1,0 +1,102 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release --verbosity normal
+
+      # The dashboard has no build step, which is deliberate, so nothing catches a stray bracket
+      # before the browser does. This is what catches it instead.
+      - name: Check the dashboard parses
+        run: bash scripts/check-js.sh
+
+      - name: Check the browser frame header matches the wire contract
+        run: node scripts/verify-frame-header.mjs
+
+  verify-encoders:
+    name: Verify encoders against independent decoders
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install verification tools
+        run: python -m pip install --quiet pillow opencv-python-headless numpy
+
+      # VisionMesh writes its own JPEG and QR encoders to keep third-party parsers out of the
+      # path that handles bytes from cameras. That makes checking them against real decoders,
+      # rather than against VisionMesh's own, worth a CI job of its own.
+      - name: Verify the QR encoder produces scannable codes
+        run: |
+          node scripts/verify-qr.mjs > qr.json
+          python scripts/verify-qr.py qr.json
+
+      - name: Verify the JPEG encoder agrees with libjpeg
+        run: |
+          dotnet test tests/VisionMesh.Tests --filter FullyQualifiedName~EmitJpegSamples
+          python scripts/verify-jpeg.py
+
+  home-assistant:
+    name: Home Assistant integration
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install linting tools
+        run: python -m pip install --quiet ruff
+
+      - name: Check it parses
+        run: python -m compileall -q homeassistant/custom_components/visionmesh
+
+      - name: Lint
+        run: ruff check homeassistant/custom_components/visionmesh
+
+      - name: Check the manifest and translations are valid JSON
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          root = pathlib.Path('homeassistant/custom_components/visionmesh')
+          manifest = json.loads((root / 'manifest.json').read_text())
+          for key in ('domain', 'name', 'version', 'documentation', 'codeowners'):
+              assert key in manifest, f'manifest.json is missing {key}'
+          json.loads((root / 'strings.json').read_text())
+          json.loads((root / 'translations' / 'en.json').read_text())
+          print(f"manifest and translations are valid ({manifest['domain']} {manifest['version']})")
+          PY

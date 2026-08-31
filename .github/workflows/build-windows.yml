@@ -1,0 +1,78 @@
+name: Build Windows
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.component }}
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [server, agent]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Set the version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "value=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=1.0.0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish
+        shell: bash
+        run: |
+          if [ "${{ matrix.component }}" = "server" ]; then
+            PROJECT=server/VisionMesh.Server
+          else
+            PROJECT=agents/windows/VisionMesh.Agent.Windows
+          fi
+
+          dotnet publish "$PROJECT" \
+            -c Release \
+            -r win-x64 \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:EnableCompressionInSingleFile=true \
+            -p:DebugType=none \
+            -p:Version=${{ steps.version.outputs.value }} \
+            -o out
+
+      - name: Package
+        shell: bash
+        run: |
+          cp LICENSE out/ 2>/dev/null || true
+
+          if [ "${{ matrix.component }}" = "server" ]; then
+            cp README.md INSTALL.md out/ 2>/dev/null || true
+            cp -r docs out/docs 2>/dev/null || true
+            NAME="VisionMesh-Server-Windows-x64"
+          else
+            NAME="VisionMesh-Agent-Windows-x64"
+          fi
+
+          7z a -tzip "${NAME}.zip" ./out/*
+          sha256sum "${NAME}.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VisionMesh-${{ matrix.component }}-Windows-x64
+          path: '*.zip'
+          retention-days: 14
