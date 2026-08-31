@@ -80,13 +80,41 @@ public class V4l2LayoutTests
     }
 
     [Fact]
-    public void PixelFormatFieldStartsRightAfterTheTypeField()
+    public void ThePixelFormatBeginsAfterTheUnionsAlignmentHole()
     {
-        // v4l2_format is a type tag followed by a union; the pix member has to begin at offset 4
-        // or every field the agent sets lands in the wrong place.
-        Assert.Equal(4, Marshal.OffsetOf<V4l2.Format>(nameof(V4l2.Format.Width)).ToInt32());
-        Assert.Equal(8, Marshal.OffsetOf<V4l2.Format>(nameof(V4l2.Format.Height)).ToInt32());
-        Assert.Equal(12, Marshal.OffsetOf<V4l2.Format>(nameof(V4l2.Format.PixelFormat)).ToInt32());
+        // This test used to assert offset 4 and was wrong, which is how the bug it now guards
+        // survived: v4l2_format's fmt union contains v4l2_window, which holds pointers, so on
+        // 64-bit the union is eight byte aligned and pix starts at offset 8.
+        //
+        // Written at offset 4, width lands in the padding, height in width and the pixel format
+        // in height. The kernel answers EINVAL for every format offered, which looks exactly like
+        // a camera VisionMesh cannot use. Sizes still matched, which is why only running against
+        // a real V4L2 device found it.
+        Assert.Equal(8, Marshal.OffsetOf<V4l2.Format>(nameof(V4l2.Format.Width)).ToInt32());
+        Assert.Equal(12, Marshal.OffsetOf<V4l2.Format>(nameof(V4l2.Format.Height)).ToInt32());
+        Assert.Equal(16, Marshal.OffsetOf<V4l2.Format>(nameof(V4l2.Format.PixelFormat)).ToInt32());
+    }
+
+    [Fact]
+    public void TheFourByteHoleIsProvenByTheIoctlNumbersThemselves()
+    {
+        // An offset assertion is only as good as the reasoning behind it, so here is the same
+        // claim from evidence already in the repository rather than from memory.
+        //
+        // v4l2_format and v4l2_streamparm are the same shape: a __u32 type tag followed by a
+        // 200 byte union. The sizes encoded in their ioctl request numbers differ by exactly
+        // four, because only v4l2_format's union contains a pointer and so is eight byte aligned.
+        var formatSize = SizeFromRequest(V4l2.VIDIOC_S_FMT);
+        var parmSize = SizeFromRequest(V4l2.VIDIOC_S_PARM);
+
+        Assert.Equal(204, parmSize);
+        Assert.Equal(208, formatSize);
+        Assert.Equal(4, formatSize - parmSize);
+
+        // Which is to say: pix begins four bytes later than parm's union does.
+        Assert.Equal(
+            Marshal.OffsetOf<V4l2.StreamParm>(nameof(V4l2.StreamParm.Capability)).ToInt32() + 4,
+            Marshal.OffsetOf<V4l2.Format>(nameof(V4l2.Format.Width)).ToInt32());
     }
 
     [Theory]

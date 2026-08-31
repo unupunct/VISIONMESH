@@ -141,13 +141,28 @@ internal static class V4l2
     }
 
     /// <summary>
-    /// v4l2_format. The kernel's union is 200 bytes; only the pix member is used here, and the
-    /// rest is padding so the struct matches the size baked into the ioctl request number.
+    /// v4l2_format, 208 bytes on 64-bit.
+    ///
+    /// The four byte hole after Type is not decoration and getting it wrong is silent. The
+    /// kernel's fmt union includes v4l2_window, which holds pointers, so on 64-bit the whole
+    /// union is eight byte aligned and the pix member starts at offset 8 rather than 4.
+    ///
+    /// The ioctl request numbers prove it without a kernel to hand: v4l2_streamparm also wraps a
+    /// 200 byte union and encodes size 204, because its union is only four byte aligned. This one
+    /// encodes 208. Those four bytes are the difference.
+    ///
+    /// Written without the hole, every field lands one slot early: width goes into the padding,
+    /// height into width, and the pixel format into height. The kernel rejects the result with
+    /// EINVAL, and it does so for every format offered, which reads exactly like a camera that
+    /// supports nothing VisionMesh can use.
     /// </summary>
     [StructLayout(LayoutKind.Sequential, Size = 208)]
     public struct Format
     {
         public uint Type;
+
+        /// <summary>The alignment hole described above. Never read, never written.</summary>
+        public uint UnionAlignmentPadding;
 
         // struct v4l2_pix_format
         public uint Width;
