@@ -1,0 +1,121 @@
+name: Integrations
+
+# Two paths that cannot be checked on the machine VisionMesh is written on, for the same reason:
+# each needs a real counterpart rather than a stand-in.
+#
+#   MQTT   - everything worth getting wrong lives in the broker's behaviour: retained
+#            configuration topics surviving for a later subscriber, commands arriving from
+#            outside, and the last will firing when the server dies.
+#   Browser - the capture path needs a camera and a secure context. Chromium's fake device gives
+#            a real MediaStream, and 127.0.0.1 is a secure context, so getUserMedia, the canvas
+#            draw and toBlob all run for real.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - "web/**"
+      - "scripts/ci/**"
+      - ".github/workflows/integrations.yml"
+  pull_request:
+    paths:
+      - "server/**"
+      - "web/**"
+      - "scripts/ci/**"
+      - ".github/workflows/integrations.yml"
+  workflow_dispatch:
+
+jobs:
+  mqtt:
+    name: MQTT against a real broker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install mosquitto
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mosquitto mosquitto-clients
+
+      - name: Start the broker
+        run: |
+          # Anonymous access on loopback only. This broker exists for the length of one job.
+          sudo tee /etc/mosquitto/conf.d/ci.conf > /dev/null <<'EOF'
+          listener 1883 127.0.0.1
+          allow_anonymous true
+          EOF
+          sudo systemctl restart mosquitto
+          sleep 2
+          systemctl is-active mosquitto
+          mosquitto_sub -h 127.0.0.1 -t '$SYS/broker/version' -C 1 -W 5 || true
+
+      - name: Build the server
+        run: dotnet build server/VisionMesh.Server/VisionMesh.Server.csproj -c Release
+
+      - name: Publish, subscribe, command and last will
+        run: |
+          chmod +x scripts/ci/mqtt-discovery.sh
+          ./scripts/ci/mqtt-discovery.sh
+
+      - name: Logs
+        if: always()
+        run: |
+          echo "──────── every MQTT message seen ────────"
+          cat /tmp/mqtt-messages.txt 2>/dev/null | head -60 || true
+          echo "──────── server ────────"
+          grep -iE "mqtt|warn|fail" /tmp/vm-mqtt-server.log 2>/dev/null | tail -30 || true
+
+  browser-camera:
+    name: Browser camera capture in Chromium
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Playwright with Chromium
+        run: |
+          npm install --no-save playwright@1
+          npx playwright install --with-deps chromium
+
+      - name: Build the server
+        run: dotnet build server/VisionMesh.Server/VisionMesh.Server.csproj -c Release
+
+      - name: Start the server
+        run: |
+          mkdir -p /tmp/vm-browser-data
+          VISIONMESH_DATA=/tmp/vm-browser-data VISIONMESH_PORT=18151 \
+            dotnet run --no-build -c Release \
+            --project server/VisionMesh.Server/VisionMesh.Server.csproj \
+            > /tmp/vm-browser-server.log 2>&1 &
+
+          for _ in $(seq 1 60); do
+            curl -sf http://127.0.0.1:18151/api/setup/status > /dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:18151/api/setup/status > /dev/null \
+            || { echo "::error::The server never started."; tail -30 /tmp/vm-browser-server.log; exit 1; }
+
+      - name: Pair a browser and read its frames back
+        run: node scripts/ci/browser-camera-capture.mjs
+
+      - name: Logs
+        if: always()
+        run: |
+          echo "──────── server ────────"
+          grep -iE "agent|camera|stream|warn|fail" /tmp/vm-browser-server.log 2>/dev/null | tail -40 || true
+
+      - name: Stop the server
+        if: always()
+        run: pkill -f VisionMesh || true
