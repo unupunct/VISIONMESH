@@ -101,13 +101,13 @@ is aspirational.
 | Privacy mode | Working | Verified on real hardware: camera released within a second, stream and snapshot refused |
 | Linux agent | Working | Captured 300 frames from a real V4L2 device in CI, decoded back to 1280x720 |
 | Browser camera — pairing and protocol | Working | A browser paired and connected as a real agent, advertising its camera |
-| Browser camera — capture | Built, not run on a phone | Frame header verified as a cross-language contract |
+| Browser camera — capture | Working | Chromium with a synthetic camera in CI: 199 frames reached the server, decoded back to 1280x720. Not yet run on a real phone |
 | RTSP cameras | Working | Pulled a live RTSP H.264 stream: transcoded for viewing, stream-copied for recording |
 | ONVIF discovery and PTZ | Built, not run against a real camera | ONVIF client is hand-written SOAP |
 | Recording and playback | Working | The published 1.0.1 build recorded a webcam, was hard-killed mid-write, and the segment still decoded 947 frames |
 | Motion detection | Working | Fired on a live camera and started a recording; decoder tested against real encoder output |
 | Home Assistant integration | Working | Loaded into Home Assistant 2026.2.3 in CI: 40 tests over the config flow and entities, plus hassfest |
-| MQTT discovery | Built, not run against a broker | — |
+| MQTT discovery | Working | Against mosquitto in CI: 8 discovery entities, state, a command from outside, and the last will after a SIGKILL |
 
 **Deliberately not built yet**
 

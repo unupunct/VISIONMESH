@@ -7,6 +7,27 @@ and this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+
+- MQTT discovery is now checked against a real mosquitto broker in CI. The parts worth getting
+  wrong live in the broker rather than in the payloads: the subscriber connects before the server
+  does, so retained configuration topics are met the way Home Assistant meets them; a privacy
+  command is published from outside and has to change real state; and the server is killed with
+  SIGKILL to prove the last will fires, because without it Home Assistant would show every
+  entity's last known value indefinitely — a dashboard that looks healthy while the cameras
+  are gone.
+- The browser camera's capture path now runs in Chromium with a synthetic capture device, which
+  gives a real MediaStream over a secure context, so getUserMedia, the canvas draw and toBlob all
+  execute as they would on a phone. Frames are read back off the server's stream endpoint,
+  counted, and one is decoded for its real dimensions.
+
+### Known
+
+- The per-camera width, height, fps and quality on the dashboard do not reach a browser camera.
+  The phone scales to the profile chosen on its own page instead, which is deliberate — the phone
+  pays the battery and bandwidth cost — but the dashboard still offers the fields and the server
+  still sends the values, so they look effective and are not.
+
 ## [1.0.3] - 2026-08-31
 
 The Linux agent works. It never had, and only running it against a real V4L2 device showed that.
