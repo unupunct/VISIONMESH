@@ -28,9 +28,23 @@ public class EndToEndTests
         var code = pairing.GetProperty("code").GetString()!;
 
         Assert.False(string.IsNullOrWhiteSpace(code));
-        Assert.StartsWith("visionmesh://pair?", pairing.GetProperty("qrPayload").GetString());
-        // The QR payload must never carry a permanent credential.
-        Assert.DoesNotContain("deviceToken", pairing.GetProperty("qrPayload").GetString()!);
+
+        // The QR is an ordinary URL so a phone's own camera app can open it, and it points at the
+        // browser camera page with the code in the fragment.
+        var qrPayload = pairing.GetProperty("qrPayload").GetString()!;
+        Assert.Contains("/camera.html#code=", qrPayload);
+        Assert.StartsWith("http", qrPayload);
+
+        // A native app can still be launched by the deep link form of the same pairing.
+        Assert.StartsWith("visionmesh://pair?", pairing.GetProperty("deepLink").GetString());
+
+        // Neither form may ever carry a permanent credential: the code is the only secret in them,
+        // and it is single use and short lived.
+        foreach (var payload in new[] { qrPayload, pairing.GetProperty("deepLink").GetString()! })
+        {
+            Assert.DoesNotContain("deviceToken", payload);
+            Assert.DoesNotContain("token=", payload);
+        }
 
         // ---- 2. an agent claims it and receives a device token ----
         using var httpClient = new HttpClient();

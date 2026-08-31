@@ -20,5 +20,6 @@
     <ProjectReference Include="..\..\server\VisionMesh.Recording\VisionMesh.Recording.csproj" />
     <ProjectReference Include="..\..\server\VisionMesh.Api\VisionMesh.Api.csproj" />
     <ProjectReference Include="..\..\agents\shared\VisionMesh.Agent.Core\VisionMesh.Agent.Core.csproj" />
+    <ProjectReference Include="..\..\agents\linux\VisionMesh.Agent.Linux\VisionMesh.Agent.Linux.csproj" />
   </ItemGroup>
 </Project>

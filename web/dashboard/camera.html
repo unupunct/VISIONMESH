@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0d1117">
+  <title>VisionMesh Camera</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="img/visionmesh-32.png">
+  <link rel="apple-touch-icon" href="img/visionmesh-256.png">
+  <link rel="manifest" href="camera.webmanifest">
+  <link rel="stylesheet" href="css/app.css">
+  <style>
+    /*
+      Phone-first layout. This page is used one-handed, often outdoors, often propped against
+      something, so the controls are large and the preview fills whatever is left.
+    */
+    body { overscroll-behavior: none; }
+
+    .camera-app {
+      display: flex;
+      flex-direction: column;
+      min-height: 100dvh;
+      max-width: 560px;
+      margin: 0 auto;
+      padding: 14px;
+      gap: 14px;
+    }
+
+    .camera-app header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      font-size: 0.82rem;
+    }
+
+    .preview {
+      position: relative;
+      background: #05080c;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      aspect-ratio: 16 / 9;
+      display: grid;
+      place-items: center;
+    }
+    .preview video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .preview .idle { color: var(--text-faint); font-size: 0.86rem; text-align: center; padding: 20px; }
+
+    .stream-badge {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      display: flex;
+      gap: 6px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+      gap: 8px;
+      font-variant-numeric: tabular-nums;
+    }
+    .stats .cell {
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 9px 10px;
+      text-align: center;
+    }
+    .stats .cell .v { font-size: 1.05rem; font-weight: 600; }
+    .stats .cell .k { font-size: 0.66rem; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; }
+
+    .big-button {
+      width: 100%;
+      justify-content: center;
+      padding: 15px;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .camera-app footer { margin-top: auto; color: var(--text-faint); font-size: 0.76rem; text-align: center; }
+  </style>
+</head>
+<body>
+  <!--
+    The browser camera.
+
+    This turns any phone, tablet or laptop with a browser into a VisionMesh camera, with nothing
+    to install and no app store involved. It speaks exactly the same protocol as the native
+    agents: it pairs for a device token, opens the agent WebSocket, and pushes JPEG frames behind
+    the same binary header. The server cannot tell the difference and does not need to.
+
+    getUserMedia only works on a secure context, which means HTTPS or localhost. On a plain-HTTP
+    home network the page detects that and explains it rather than failing at the permission prompt.
+  -->
+  <div class="camera-app">
+    <header>
+      <img src="img/visionmesh-32.png" alt="" width="24" height="24">
+      <span>VISIONMESH CAMERA</span>
+      <span id="link-state" class="connection" style="margin-left:auto"><span class="dot"></span><span id="link-label">Not connected</span></span>
+    </header>
+
+    <div id="panel"></div>
+
+    <div class="preview" id="preview">
+      <div class="idle" id="preview-idle">The preview appears here once the camera starts.</div>
+      <video id="video" playsinline autoplay muted hidden></video>
+      <div class="stream-badge" id="stream-badge"></div>
+    </div>
+
+    <div class="stats" id="stats" hidden></div>
+
+    <div id="controls"></div>
+
+    <footer id="footer"></footer>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="toast-root" class="toast-root" aria-live="polite"></div>
+
+  <script type="module" src="js/camera.js"></script>
+</body>
+</html>

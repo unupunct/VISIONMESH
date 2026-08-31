@@ -88,6 +88,25 @@ public static class SystemEndpoints
         })
         .WithName("GetSetupStatus");
 
+        // Also unauthenticated, and for the same reason: the wizard has to be able to check the
+        // recordings folder before the account that would authorise the check exists. It stops
+        // working the moment setup is complete, and it reveals nothing beyond whether a path is
+        // writable by the server's own account.
+        group.MapPost("/test-path", (SettingsRequest request, UserRepository users) =>
+        {
+            if (users.Count() > 0)
+            {
+                return Results.Json(new { error = "This server is already set up." }, statusCode: StatusCodes.Status409Conflict);
+            }
+
+            if (string.IsNullOrWhiteSpace(request.RecordingsPath))
+                return Results.BadRequest(new { error = "Enter a folder to test." });
+
+            var (writable, error) = StorageManager.TestWritable(request.RecordingsPath.Trim());
+            return Results.Ok(new { writable, error });
+        })
+        .WithName("TestSetupStoragePath");
+
         group.MapPost("/", (HttpContext http, SetupRequest request, UserRepository users, SettingsRepository settings, AuthService auth) =>
         {
             if (users.Count() > 0)

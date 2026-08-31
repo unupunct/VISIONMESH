@@ -1,0 +1,17 @@
+{
+  "name": "VisionMesh",
+  "short_name": "VisionMesh",
+  "description": "Self-hosted camera and surveillance platform",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "icons": [
+    { "src": "img/visionmesh-64.png", "sizes": "64x64", "type": "image/png" },
+    { "src": "img/visionmesh-128.png", "sizes": "128x128", "type": "image/png" },
+    { "src": "img/visionmesh-256.png", "sizes": "256x256", "type": "image/png", "purpose": "any" },
+    { "src": "img/visionmesh-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

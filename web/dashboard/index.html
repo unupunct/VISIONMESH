@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0d1117">
+  <title>VisionMesh</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="img/visionmesh-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="img/visionmesh-256.png">
+  <link rel="apple-touch-icon" href="img/visionmesh-256.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <!--
+    The dashboard is deliberately plain HTML, CSS and ES modules with no build step.
+    A self-hosted product should be buildable and auditable by the person running it; requiring
+    a JavaScript toolchain to change a label is a barrier that buys nothing here.
+  -->
+  <div id="app" class="app" hidden>
+    <header class="topbar">
+      <button class="icon-button menu-toggle" id="menu-toggle" aria-label="Menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+
+      <a class="brand" href="#/cameras">
+        <img src="img/visionmesh-32.png" alt="" width="26" height="26">
+        <span>VISIONMESH</span>
+      </a>
+
+      <div class="topbar-stats" id="topbar-stats" aria-live="polite"></div>
+
+      <div class="topbar-actions">
+        <span class="connection" id="connection-state" title="Live updates">
+          <span class="dot"></span><span class="connection-label">Live</span>
+        </span>
+        <button class="icon-button" id="account-button" aria-label="Account"></button>
+      </div>
+    </header>
+
+    <div class="body">
+      <nav class="sidebar" id="sidebar" aria-label="Sections">
+        <a href="#/cameras" data-route="cameras"><span class="nav-icon">▦</span>Cameras</a>
+        <a href="#/live" data-route="live"><span class="nav-icon">▶</span>Live view</a>
+        <a href="#/recordings" data-route="recordings"><span class="nav-icon">⏺</span>Recordings</a>
+        <a href="#/events" data-route="events"><span class="nav-icon">≡</span>Events</a>
+        <a href="#/devices" data-route="devices"><span class="nav-icon">▤</span>Devices</a>
+        <a href="#/homeassistant" data-route="homeassistant"><span class="nav-icon">⌂</span>Home Assistant</a>
+        <a href="#/storage" data-route="storage"><span class="nav-icon">▪</span>Storage</a>
+        <a href="#/network" data-route="network"><span class="nav-icon">⇅</span>Network</a>
+        <a href="#/settings" data-route="settings"><span class="nav-icon">⚙</span>Settings</a>
+        <a href="#/help" data-route="help"><span class="nav-icon">?</span>Help</a>
+
+        <div class="sidebar-footer">
+          <span id="server-version"></span>
+        </div>
+      </nav>
+
+      <main class="content" id="content" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <div id="boot" class="boot">
+    <div class="boot-inner">
+      <img src="img/visionmesh-256.png" alt="" width="64" height="64">
+      <p>Starting VisionMesh…</p>
+    </div>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="toast-root" class="toast-root" aria-live="polite"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

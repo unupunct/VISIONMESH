@@ -4,6 +4,7 @@
     <RootNamespace>VisionMesh.Server</RootNamespace>
     <OutputType>Exe</OutputType>
     <UserSecretsId>visionmesh-server</UserSecretsId>
+    <ApplicationIcon>visionmesh.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />

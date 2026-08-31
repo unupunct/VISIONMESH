@@ -125,7 +125,13 @@ public static class DeviceEndpoints
                 serverName = settings.GetString(SettingsRepository.Keys.ServerName, "VisionMesh"),
                 serverUrl = urls.FirstOrDefault(),
                 alternateUrls = urls,
-                qrPayload = BuildQrPayload(token.Code, urls.FirstOrDefault(), settings.GetString(SettingsRepository.Keys.ServerName, "VisionMesh")),
+                // The QR carries an ordinary URL so a phone's built-in camera app can open it
+                // directly. That is what makes "scan and start streaming" work with no app to
+                // install: the link lands on the browser camera page with the code already filled in.
+                qrPayload = BuildCameraUrl(urls.FirstOrDefault(), token.Code),
+                cameraUrl = BuildCameraUrl(urls.FirstOrDefault(), token.Code),
+                // Kept for a future native app, which can register this scheme and be launched by it.
+                deepLink = BuildDeepLink(token.Code, urls.FirstOrDefault(), settings.GetString(SettingsRepository.Keys.ServerName, "VisionMesh")),
             });
         })
         .RequireAdministrator()
@@ -211,10 +217,19 @@ public static class DeviceEndpoints
         .WithSummary("Exchanges a pairing code for a permanent device token.");
     }
 
-    private static string BuildQrPayload(string code, string? serverUrl, string serverName)
+    /// <summary>
+    /// The browser camera page with the pairing code in the fragment.
+    ///
+    /// The code goes in the fragment rather than the query string on purpose: a fragment is never
+    /// sent to the server in a request line, so the single-use code cannot end up in an access log
+    /// or a proxy log on its way to being redeemed.
+    /// </summary>
+    private static string BuildCameraUrl(string? serverUrl, string code)
+        => $"{(serverUrl ?? "").TrimEnd('/')}/camera.html#code={Uri.EscapeDataString(code)}";
+
+    /// <summary>A custom scheme a native app can register, so the same QR works once one exists.</summary>
+    private static string BuildDeepLink(string code, string? serverUrl, string serverName)
     {
-        // A compact custom scheme the mobile app recognises. Deliberately not a URL a browser
-        // would follow, so a scanned code cannot navigate a phone anywhere unexpected.
         var parts = new List<string> { $"code={Uri.EscapeDataString(code)}" };
         if (!string.IsNullOrEmpty(serverUrl)) parts.Add($"url={Uri.EscapeDataString(serverUrl)}");
         parts.Add($"name={Uri.EscapeDataString(serverName)}");
