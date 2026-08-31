@@ -86,7 +86,7 @@ class VisionMeshClient:
 
             except aiohttp.ClientError as error:
                 raise VisionMeshConnectionError(f"Could not reach VisionMesh: {error}") from error
-            except asyncio.TimeoutError as error:
+            except TimeoutError as error:
                 raise VisionMeshConnectionError("VisionMesh did not answer in time.") from error
 
     async def _request(
@@ -133,7 +133,7 @@ class VisionMeshClient:
 
         except aiohttp.ClientError as error:
             raise VisionMeshConnectionError(f"Could not reach VisionMesh: {error}") from error
-        except asyncio.TimeoutError as error:
+        except TimeoutError as error:
             raise VisionMeshConnectionError("VisionMesh did not answer in time.") from error
 
     @staticmethod
@@ -189,7 +189,7 @@ class VisionMeshClient:
 
                 return await response.read()
 
-        except (aiohttp.ClientError, asyncio.TimeoutError) as error:
+        except (TimeoutError, aiohttp.ClientError) as error:
             _LOGGER.debug("Snapshot for %s failed: %s", camera_id, error)
             return None
 

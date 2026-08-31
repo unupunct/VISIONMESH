@@ -1,0 +1,26 @@
+# Lint configuration for the Home Assistant integration.
+#
+# Home Assistant's own style is the target here, since that is what the integration has to live
+# alongside: 100 column lines, sorted imports, and no unused ones. The rule set is deliberately
+# narrow - this is here to keep the integration consistent and free of dead imports, not to
+# impose a house style on contributors.
+
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # import sorting
+    "UP",   # pyupgrade
+    "B",    # bugbear
+]
+
+ignore = [
+    "E501",   # line length is handled by the formatter, and long URLs in docstrings are fine
+]
+
+[lint.isort]
+force-sort-within-sections = true
+known-first-party = ["homeassistant"]

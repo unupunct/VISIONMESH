@@ -7,8 +7,8 @@ integration ends up being the reason someone's Home Assistant feels slow.
 
 from __future__ import annotations
 
-import logging
 from datetime import timedelta
+import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
