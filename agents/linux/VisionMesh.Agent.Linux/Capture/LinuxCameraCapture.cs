@@ -324,11 +324,23 @@ public sealed class LinuxCameraCapture(ILogger log) : ICameraCapture
                     Padding = new byte[152],
                 };
 
-                if (!Ioctl(_fd, V4l2.VIDIOC_S_FMT, ref format)) continue;
+                if (!Ioctl(_fd, V4l2.VIDIOC_S_FMT, ref format))
+                {
+                    // Worth recording: "no usable format" is a useless thing to be told when the
+                    // driver gave a specific reason for each refusal.
+                    _log.LogDebug("The camera refused {Format}: errno {Error}.",
+                        V4l2.DescribeFourCc(candidate), Marshal.GetLastWin32Error());
+                    continue;
+                }
 
                 // S_FMT is a negotiation: the driver writes back what it will actually deliver,
                 // which may be a different size and, if it refused, a different format entirely.
-                if (format.PixelFormat != candidate) continue;
+                if (format.PixelFormat != candidate)
+                {
+                    _log.LogDebug("Asked for {Wanted}, the camera answered {Actual}.",
+                        V4l2.DescribeFourCc(candidate), V4l2.DescribeFourCc(format.PixelFormat));
+                    continue;
+                }
 
                 _pixelFormat = format.PixelFormat;
                 Width = (int)format.Width;
@@ -344,7 +356,36 @@ public sealed class LinuxCameraCapture(ILogger log) : ICameraCapture
                 return;
             }
 
-            throw new CameraCaptureException("This camera offers no video format VisionMesh can use.");
+            throw new CameraCaptureException(DescribeNegotiationFailure());
+        }
+
+        /// <summary>
+        /// Explains a failed negotiation using what the camera is actually set to.
+        ///
+        /// Asking the driver what it is currently delivering separates two very different
+        /// problems that used to produce the same sentence: a camera whose formats VisionMesh
+        /// genuinely cannot handle, and one that simply would not be reconfigured because
+        /// something else is already streaming from it.
+        /// </summary>
+        private string DescribeNegotiationFailure()
+        {
+            var current = new V4l2.Format
+            {
+                Type = V4l2.V4L2_BUF_TYPE_VIDEO_CAPTURE,
+                Padding = new byte[152],
+            };
+
+            if (!Ioctl(_fd, V4l2.VIDIOC_G_FMT, ref current))
+            {
+                return "This camera offers no video format VisionMesh can use.";
+            }
+
+            var describe = V4l2.DescribeFourCc(current.PixelFormat);
+            return IsUsable(current.PixelFormat)
+                ? $"The camera would not change format. It is already delivering {describe} "
+                  + $"{current.Width}x{current.Height}, most likely because another program is using it."
+                : $"This camera offers no video format VisionMesh can use. It is set to {describe} "
+                  + $"{current.Width}x{current.Height}.";
         }
 
         private bool IsNativeJpeg => _pixelFormat == V4l2.V4L2_PIX_FMT_MJPEG || _pixelFormat == V4l2.V4L2_PIX_FMT_JPEG;

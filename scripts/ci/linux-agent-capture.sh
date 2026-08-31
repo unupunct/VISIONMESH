@@ -65,7 +65,7 @@ dotnet run --no-build -c Release \
 
 dotnet run --no-build -c Release \
     --project agents/linux/VisionMesh.Agent.Linux/VisionMesh.Agent.Linux.csproj \
-    -- --config "$CONFIG" > /tmp/vm-agent.log 2>&1 &
+    -- --config "$CONFIG" --verbose > /tmp/vm-agent.log 2>&1 &
 
 DEVICE=""
 for _ in $(seq 1 45); do
@@ -94,8 +94,11 @@ echo "camera added: ${CAMERA}"
 
 # Capture a few seconds of the MJPEG stream. curl is stopped by its own timeout, which is a
 # success here, so the exit code is deliberately ignored and the bytes are what get judged.
-curl -s --max-time 12 -H "Authorization: Bearer ${TOKEN}" \
+curl -s --max-time 20 -D /tmp/stream.headers -H "Authorization: Bearer ${TOKEN}" \
     "${BASE}/api/cameras/${CAMERA}/stream.mjpeg" -o /tmp/stream.bin || true
+
+echo "--- stream response headers ---"
+head -5 /tmp/stream.headers 2>/dev/null || echo "(none)"
 
 SIZE=$(stat -c%s /tmp/stream.bin 2>/dev/null || echo 0)
 echo "captured ${SIZE} bytes from the stream endpoint"
