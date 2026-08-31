@@ -93,7 +93,7 @@ is aspirational.
 
 | Component | State | Verified how |
 |---|---|---|
-| Server (Windows, Linux) | Working | Runs, 53 automated tests, driven through a browser |
+| Server (Windows, Linux) | Working | Runs, 62 automated tests, driven through a browser |
 | Web dashboard | Working | Every page exercised in a real browser |
 | Pairing, devices, camera CRUD | Working | End-to-end tests pair a device and add its camera |
 | Live streaming (MJPEG) | Working | End-to-end tests read real frames off the stream endpoint |
@@ -101,8 +101,9 @@ is aspirational.
 | Privacy mode | Working | Verified on real hardware: camera released within a second, stream and snapshot refused |
 | Linux agent | Built, not run on Linux hardware | V4L2 struct layouts asserted against kernel ioctl sizes |
 | Browser camera (phone) | Built, not run on a phone | Frame header verified as a cross-language contract |
-| RTSP / ONVIF cameras | Built, not run against a real camera | ONVIF client is hand-written SOAP |
-| Recording and playback | Working | Recorded a real camera: valid H.264 MP4, indexed, seekable by range request |
+| RTSP cameras | Working | Pulled a live RTSP H.264 stream: transcoded for viewing, stream-copied for recording |
+| ONVIF discovery and PTZ | Built, not run against a real camera | ONVIF client is hand-written SOAP |
+| Recording and playback | Working | Recorded a webcam and an RTSP stream: valid H.264 MP4, indexed, seekable by range request |
 | Motion detection | Working | Fired on a live camera and started a recording; decoder tested against real encoder output |
 | Home Assistant integration | Built, not run inside Home Assistant | Python syntax-checked; API it consumes is tested |
 | MQTT discovery | Built, not run against a broker | — |

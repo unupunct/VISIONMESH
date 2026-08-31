@@ -190,14 +190,7 @@ public sealed class JpegRecorder : IAsyncDisposable
         Add("-g"); Add((_fps * 2).ToString(CultureInfo.InvariantCulture));
         Add("-an");
 
-        Add("-f"); Add("segment");
-        Add("-segment_time"); Add(_plan.SegmentSeconds.ToString(CultureInfo.InvariantCulture));
-        Add("-segment_format"); Add("mp4");
-        Add("-segment_atclocktime"); Add("1");
-        Add("-reset_timestamps"); Add("1");
-        Add("-strftime"); Add("1");
-        Add("-movflags"); Add("+faststart+frag_keyframe+empty_moov");
-        Add(Path.Combine(_plan.Directory, RecordingPlan.FilePattern));
+        foreach (var argument in _plan.BuildSegmentArguments()) Add(argument);
 
         return info;
     }

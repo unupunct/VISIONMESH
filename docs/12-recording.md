@@ -86,9 +86,10 @@ raises a warning event when free space drops below 2 GB.
 **Motion recording captures nothing.** Motion has to be tuned for the scene. See
 [Motion detection](13-motion.md).
 
-**A recording will not play in the browser.** If the server was killed mid-write, the last segment
-may be incomplete. VisionMesh closes such segments at startup using the file's real size, and they
-usually still play in VLC.
+**A recording will not play in the browser.** Segments are written as fragmented MP4, so one that
+was interrupted by a stop, a crash or a power cut still plays up to the point it reached. If one
+genuinely will not open, check the **Storage** page: a disk that filled up mid-write is the usual
+cause.
 
 ## Advanced
 
@@ -106,6 +107,15 @@ seconds.
 
 The reason for the split is that a stream copy cannot start and stop without restarting the
 connection to the camera, which is far too disruptive to do on every motion event.
+
+### Turning recording on restarts a network camera
+
+Whether a network camera records is part of the ffmpeg command line, so switching recording on or
+off restarts its connection. The live view drops for a second or two while that happens, and the
+camera briefly shows as offline.
+
+That is the cost of using one connection for both the live view and the recording, which is worth
+paying: many cameras allow only one or two connections at all.
 
 ### Pre-roll
 

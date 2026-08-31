@@ -160,7 +160,7 @@ public sealed class FfmpegPullSource : IAsyncDisposable
         {
             linked.Cancel();
             await watchdog.ConfigureAwait(false);
-            TryKill(process);
+            await StopGracefullyAsync(process).ConfigureAwait(false);
         }
 
         string tail;
@@ -182,7 +182,9 @@ public sealed class FfmpegPullSource : IAsyncDisposable
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-            RedirectStandardInput = false,
+            // ffmpeg quits cleanly when it reads 'q' on stdin, and a clean quit is what finalises
+            // the MP4 being recorded. Killing it instead leaves a file with no moov atom.
+            RedirectStandardInput = true,
             UseShellExecute = false,
             CreateNoWindow = true,
         };
@@ -234,16 +236,7 @@ public sealed class FfmpegPullSource : IAsyncDisposable
 
             Add("-c"); Add("copy");
             Add("-an");
-            Add("-f"); Add("segment");
-            Add("-segment_time"); Add(plan.SegmentSeconds.ToString(CultureInfo.InvariantCulture));
-            Add("-segment_format"); Add("mp4");
-            // Segments must start on a keyframe or the first seconds of each file are unplayable.
-            Add("-segment_atclocktime"); Add("1");
-            Add("-reset_timestamps"); Add("1");
-            Add("-strftime"); Add("1");
-            // movflags makes each segment playable even if the process is killed mid-write.
-            Add("-movflags"); Add("+faststart+frag_keyframe+empty_moov");
-            Add(Path.Combine(plan.Directory, RecordingPlan.FilePattern));
+            foreach (var argument in plan.BuildSegmentArguments()) Add(argument);
         }
 
         return info;
@@ -289,6 +282,50 @@ public sealed class FfmpegPullSource : IAsyncDisposable
     {
         var redacted = UrlRedactor.Redact(_authenticatedUrl);
         return text.Replace(_authenticatedUrl, redacted, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Asks ffmpeg to finish, then kills it if it will not.
+    ///
+    /// This matters more than it looks: a recording is only a valid MP4 once its muxer has
+    /// written the trailer. Killing ffmpeg outright leaves the segment unplayable, which is a
+    /// silent failure - the file is the right size and appears in the archive, and only fails
+    /// when somebody tries to watch it.
+    /// </summary>
+    private static async Task StopGracefullyAsync(Process process)
+    {
+        try
+        {
+            if (process.HasExited) return;
+
+            // 'q' is ffmpeg's own quit key. Closing stdin afterwards covers builds that are
+            // waiting on end-of-input rather than reading the keystroke.
+            try
+            {
+                await process.StandardInput.WriteAsync('q').ConfigureAwait(false);
+                await process.StandardInput.FlushAsync().ConfigureAwait(false);
+                process.StandardInput.Close();
+            }
+            catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException)
+            {
+                // The pipe is already gone; fall through to waiting and then killing.
+            }
+
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Took too long to finish; the kill below is the backstop.
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
+        {
+            // Process already reaped.
+        }
+        finally
+        {
+            TryKill(process);
+        }
     }
 
     private static void TryKill(Process process)

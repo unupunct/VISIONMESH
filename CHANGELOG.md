@@ -9,6 +9,15 @@ and this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Fixed
 
+- Recordings are now playable after an interrupted recording. The flags that make each segment
+  survive an interruption have to reach the mp4 muxer inside the segment muxer, and the segment
+  muxer does not forward a plain `-movflags` to it. Written that way the flags were silently
+  ignored, so any recording that was stopped rather than allowed to finish had no moov atom: the
+  right size, present in the archive, and playable nowhere. They now go through
+  `-segment_format_options`, and the arguments live in one tested place. Found by recording a
+  live RTSP stream and killing the recorder.
+- Network camera recordings are now ended by asking ffmpeg to quit rather than killing it, so the
+  final segment is finalised properly instead of relying on fragmentation to rescue it.
 - Recordings are now labelled with the reason they were made. The indexer previously marked every
   segment Continuous, because an ffmpeg segment file carries nothing that says what caused it, so
   a motion clip appeared in the recordings list and on the timeline as continuous footage. The
