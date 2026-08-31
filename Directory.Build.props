@@ -10,9 +10,9 @@
     <Product>VisionMesh</Product>
     <Company>VisionMesh</Company>
     <Authors>VisionMesh Contributors</Authors>
-    <Version>1.0.2</Version>
-    <AssemblyVersion>1.0.2.0</AssemblyVersion>
-    <FileVersion>1.0.2.0</FileVersion>
+    <Version>1.0.3</Version>
+    <AssemblyVersion>1.0.3.0</AssemblyVersion>
+    <FileVersion>1.0.3.0</FileVersion>
     <Copyright>Copyright (c) VisionMesh Contributors</Copyright>
     <RepositoryUrl>https://github.com/unupunct/VISIONMESH</RepositoryUrl>
     <NoWarn>$(NoWarn);CA1416</NoWarn>

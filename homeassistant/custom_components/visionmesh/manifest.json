@@ -11,7 +11,7 @@
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/unupunct/VISIONMESH/issues",
   "requirements": [],
-  "version": "1.0.2",
+  "version": "1.0.3",
   "zeroconf": [
     "_visionmesh._tcp.local."
   ]

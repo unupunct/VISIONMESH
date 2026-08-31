@@ -7,6 +7,10 @@ and this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-08-31
+
+The Linux agent works. It never had, and only running it against a real V4L2 device showed that.
+
 ### Fixed
 
 - **The Linux agent can now capture at all.** `v4l2_format` was declared with its pixel format
@@ -160,7 +164,8 @@ First release. Everything below is new.
 - Native Android and iOS applications. The browser camera covers the same ground.
 - Floor plans and drag-and-drop camera groups.
 
-[Unreleased]: https://github.com/unupunct/VISIONMESH/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/unupunct/VISIONMESH/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/unupunct/VISIONMESH/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/unupunct/VISIONMESH/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/unupunct/VISIONMESH/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/unupunct/VISIONMESH/releases/tag/v1.0.0
