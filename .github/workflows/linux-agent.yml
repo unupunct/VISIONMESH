@@ -15,12 +15,14 @@ on:
       - "agents/linux/**"
       - "agents/shared/**"
       - "server/**"
+      - "scripts/ci/**"
       - ".github/workflows/linux-agent.yml"
   pull_request:
     paths:
       - "agents/linux/**"
       - "agents/shared/**"
       - "server/**"
+      - "scripts/ci/**"
       - ".github/workflows/linux-agent.yml"
   workflow_dispatch:
 
@@ -39,9 +41,7 @@ jobs:
       - name: Install ffmpeg and the loopback camera module
         run: |
           sudo apt-get update
-          # linux-modules-extra carries videodev, whose symbols v4l2loopback links against; without
-          # it the module builds and then refuses to insert with "Unknown symbol in module".
-          sudo apt-get install -y ffmpeg v4l-utils v4l2loopback-dkms             "linux-headers-$(uname -r)" "linux-modules-extra-$(uname -r)" ||             sudo apt-get install -y ffmpeg v4l-utils v4l2loopback-dkms "linux-headers-$(uname -r)"
+          sudo apt-get install -y ffmpeg v4l-utils v4l2loopback-dkms "linux-headers-$(uname -r)"
 
       - name: Create a video device
         run: |
@@ -49,8 +49,8 @@ jobs:
           uname -r
           dkms status || true
 
-          # v4l2loopback is a V4L2 *driver*, so the core has to be present first.
-          sudo modprobe videodev || echo "videodev not available as a module"
+          # v4l2loopback is a V4L2 driver, so the core has to be loaded before it.
+          sudo modprobe videodev || echo "videodev is built in rather than a module"
 
           if ! sudo modprobe v4l2loopback devices=1 video_nr=0 card_label=VisionMeshTestCamera exclusive_caps=1; then
               echo "::error::v4l2loopback would not load."
@@ -58,9 +58,38 @@ jobs:
               exit 1
           fi
 
+          # Deliberately left root-only for now: the next step checks what the agent says about a
+          # camera it is not allowed to open.
           ls -l /dev/video0
+
+      - name: Build the agent and the server
+        run: |
+          dotnet build server/VisionMesh.Server/VisionMesh.Server.csproj -c Release
+          dotnet build agents/linux/VisionMesh.Agent.Linux/VisionMesh.Agent.Linux.csproj -c Release
+
+      # A camera the agent may not open is the most common reason a Linux camera "does not work",
+      # and the agent claims to say so plainly rather than hiding the device. The runner gives a
+      # free chance to check that, because the fresh node is owned by root.
+      - name: A camera it cannot open is reported, not hidden
+        run: |
+          dotnet run --no-build -c Release \
+            --project agents/linux/VisionMesh.Agent.Linux/VisionMesh.Agent.Linux.csproj \
+            -- list | tee /tmp/denied.txt
+
+          grep -qi "permission" /tmp/denied.txt || {
+            echo "::error::The agent did not explain that it lacks permission for /dev/video0."
+            exit 1
+          }
+          grep -qi "video.*group" /tmp/denied.txt || {
+            echo "::error::The permission message should say how to fix it."
+            exit 1
+          }
+
+      - name: Allow the runner to use the device
+        run: |
+          sudo chmod 666 /dev/video0
           v4l2-ctl --list-devices
-          v4l2-ctl --device=/dev/video0 --all | head -40
+          v4l2-ctl --device=/dev/video0 --all | head -30
 
       - name: Feed the device a moving test pattern
         run: |
@@ -72,11 +101,6 @@ jobs:
           echo $! > /tmp/feed.pid
           sleep 5
           v4l2-ctl --device=/dev/video0 --list-formats-ext | head -20
-
-      - name: Build the agent and the server
-        run: |
-          dotnet build server/VisionMesh.Server/VisionMesh.Server.csproj -c Release
-          dotnet build agents/linux/VisionMesh.Agent.Linux/VisionMesh.Agent.Linux.csproj -c Release
 
       # The first real question: does the agent's own enumeration find the device, through
       # QUERYCAP and ENUM_FMT, and report a format it can actually use?
