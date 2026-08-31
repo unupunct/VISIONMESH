@@ -7,6 +7,16 @@ and this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+
+- Agents now report the version they actually are. It was a hand-written constant in each agent,
+  and it drifted: the 1.0.1 agent introduced itself to the server as 1.0.0, so the Devices page —
+  the one place a user looks to decide whether an agent needs updating — showed a version that was
+  not the one running. It now comes from the assembly, and a test fails if a literal comes back.
+  The browser camera no longer reports a version number at all, because it is served by the server
+  and so is always the server's own version. Found by pairing the released agent with the released
+  server.
+
 ## [1.0.1] - 2026-08-31
 
 Fixes found by running 1.0.0 against a real webcam and a real RTSP stream.

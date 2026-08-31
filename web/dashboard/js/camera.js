@@ -151,7 +151,9 @@ function showPairing(prefilledCode) {
             name: nameInput.value.trim() || suggestName(),
             kind: detectDeviceKindName(),
             platform: navigator.userAgent,
-            version: '1.0.0-browser',
+            // Served by the server, so its version is always the server's own. Reporting a number here
+            // could only ever be redundant or, once it drifts, wrong.
+            version: 'browser',
           }),
         });
 
@@ -398,7 +400,9 @@ function connect() {
         name: state.config.deviceName,
         kind: detectDeviceKindValue(),
         platform: navigator.userAgent,
-        version: '1.0.0-browser',
+        // Served by the server, so its version is always the server's own. Reporting a number here
+        // could only ever be redundant or, once it drifts, wrong.
+        version: 'browser',
         devices: describeCameras(),
       },
     });

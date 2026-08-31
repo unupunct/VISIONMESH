@@ -14,7 +14,7 @@ namespace VisionMesh.Agent.Linux;
 /// </summary>
 public static class Program
 {
-    private const string Version = "1.0.0";
+    private static string Version => AgentVersion.Current;
 
     public static async Task<int> Main(string[] args)
     {
