@@ -7,6 +7,10 @@ and this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-08-31
+
+Fixes found by running 1.0.0 against a real webcam and a real RTSP stream.
+
 ### Fixed
 
 - Recordings are now playable after an interrupted recording. The flags that make each segment
@@ -88,5 +92,6 @@ First release. Everything below is new.
 - Native Android and iOS applications. The browser camera covers the same ground.
 - Floor plans and drag-and-drop camera groups.
 
-[Unreleased]: https://github.com/unupunct/VISIONMESH/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/unupunct/VISIONMESH/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/unupunct/VISIONMESH/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/unupunct/VISIONMESH/releases/tag/v1.0.0

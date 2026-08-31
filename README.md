@@ -100,7 +100,8 @@ is aspirational.
 | Windows agent — discovery and capture | Working | Ran against a real Logitech BRIO: 720p15 MJPEG forwarded without re-encoding |
 | Privacy mode | Working | Verified on real hardware: camera released within a second, stream and snapshot refused |
 | Linux agent | Built, not run on Linux hardware | V4L2 struct layouts asserted against kernel ioctl sizes |
-| Browser camera (phone) | Built, not run on a phone | Frame header verified as a cross-language contract |
+| Browser camera — pairing and protocol | Working | A browser paired and connected as a real agent, advertising its camera |
+| Browser camera — capture | Built, not run on a phone | Frame header verified as a cross-language contract |
 | RTSP cameras | Working | Pulled a live RTSP H.264 stream: transcoded for viewing, stream-copied for recording |
 | ONVIF discovery and PTZ | Built, not run against a real camera | ONVIF client is hand-written SOAP |
 | Recording and playback | Working | Recorded a webcam and an RTSP stream: valid H.264 MP4, indexed, seekable by range request |
