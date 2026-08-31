@@ -7,6 +7,11 @@ and this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-08-31
+
+Fixes found by running the released 1.0.1 binaries against each other, and by running the Home
+Assistant integration inside Home Assistant for the first time.
+
 ### Added
 
 - The Home Assistant integration is now loaded into a real Home Assistant and exercised in CI —
@@ -119,6 +124,7 @@ First release. Everything below is new.
 - Native Android and iOS applications. The browser camera covers the same ground.
 - Floor plans and drag-and-drop camera groups.
 
-[Unreleased]: https://github.com/unupunct/VISIONMESH/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/unupunct/VISIONMESH/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/unupunct/VISIONMESH/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/unupunct/VISIONMESH/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/unupunct/VISIONMESH/releases/tag/v1.0.0
