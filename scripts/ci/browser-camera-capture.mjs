@@ -210,9 +210,31 @@ const main = async () => {
     fail(`A ${size.width}x${size.height} frame is too small to be real video.`);
   }
 
-  // The page scales to fit the requested size, so it must not exceed it.
-  if (size.width > 640 || size.height > 480) {
-    fail(`Frame is ${size.width}x${size.height}, larger than the 640x480 that was asked for.`);
+  // Two invariants that hold whoever ends up owning the resolution.
+  //
+  // The browser camera scales to the profile chosen on the phone itself, not to the size the
+  // server asked for: the phone pays the battery and bandwidth cost, so it keeps that choice. The
+  // width and height in the server's start-capture command are currently ignored, which is worth
+  // knowing when reading the dashboard's per-camera size fields for one of these.
+  const profile = { width: 1280, height: 720 };   // the page's default "Balanced" profile
+
+  if (size.width > video.width || size.height > video.height) {
+    fail(`Frame is ${size.width}x${size.height}, larger than the ${video.width}x${video.height} `
+      + 'the camera produced. Upscaling before sending would waste bandwidth for no detail.');
+  }
+
+  if (size.width > profile.width || size.height > profile.height) {
+    fail(`Frame is ${size.width}x${size.height}, outside the ${profile.width}x${profile.height} `
+      + 'profile box the page selected.');
+  }
+
+  // Fitting a box means one dimension should actually reach it, otherwise the scaling maths has
+  // quietly shrunk everything.
+  const fitted = size.width === Math.min(video.width, profile.width)
+    || size.height === Math.min(video.height, profile.height);
+  if (!fitted) {
+    fail(`Frame is ${size.width}x${size.height}, which touches neither the source size nor the `
+      + 'profile box, so the scaling is wrong.');
   }
 
   await browser.close();

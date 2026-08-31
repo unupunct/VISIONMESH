@@ -76,7 +76,7 @@ echo "expected MQTT object id: ${OBJECT_ID}"
 
 # ---- turn MQTT on through the API, as a user would ----
 
-curl -sf -X POST "${BASE}/api/homeassistant" -H 'Content-Type: application/json' \
+curl -sf -X PUT "${BASE}/api/homeassistant" -H 'Content-Type: application/json' \
     -H "Authorization: Bearer ${TOKEN}" \
     -d "{\"mqttEnabled\":true,\"mqttHost\":\"${BROKER}\",\"mqttPort\":1883,\"mqttDiscoveryPrefix\":\"homeassistant\"}" \
     > /dev/null || fail "Could not enable MQTT."
