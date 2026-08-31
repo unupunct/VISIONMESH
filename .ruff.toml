@@ -24,3 +24,6 @@ ignore = [
 [lint.isort]
 force-sort-within-sections = true
 known-first-party = ["homeassistant"]
+# Home Assistant writes `from x import a as b, c as d` on one line, and the integration reads
+# better next to core when it does the same.
+combine-as-imports = true

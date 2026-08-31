@@ -1,0 +1,55 @@
+name: Home Assistant
+
+# The integration cannot be meaningfully checked on the machine it was written on: Home Assistant
+# core does not install on Windows. It does install here, so this is where it gets loaded into a
+# real Home Assistant and run.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "homeassistant/**"
+      - "server/VisionMesh.Api/Endpoints/HomeAssistantEndpoints.cs"
+      - ".github/workflows/homeassistant.yml"
+  pull_request:
+    paths:
+      - "homeassistant/**"
+      - "server/VisionMesh.Api/Endpoints/HomeAssistantEndpoints.cs"
+      - ".github/workflows/homeassistant.yml"
+  workflow_dispatch:
+
+jobs:
+  hassfest:
+    name: Home Assistant manifest validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # hassfest is Home Assistant's own validator: manifest fields, config-flow registration,
+      # dependency and requirement declarations, translation keys. It is the check every
+      # integration in core has to pass.
+      - uses: home-assistant/actions/hassfest@master
+        with:
+          path: "./homeassistant"
+
+  tests:
+    name: Run inside Home Assistant
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install Home Assistant and the custom-component test harness
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest-homeassistant-custom-component
+
+      - name: Report the Home Assistant version actually being tested against
+        run: python -c "import homeassistant; print('Home Assistant', homeassistant.__version__)"
+
+      - name: Run the integration inside Home Assistant
+        working-directory: homeassistant
+        run: pytest tests -v --tb=short
