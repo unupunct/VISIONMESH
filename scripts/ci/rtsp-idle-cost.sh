@@ -177,8 +177,25 @@ echo "and it is genuinely recording: ${RECORDED} segment(s) on disk"
 
 # ---- and it still works when somebody watches ----
 
-curl -s --max-time 15 -H "Authorization: Bearer ${TOKEN}" \
-    "${BASE}/api/cameras/${CAMERA}/stream.mjpeg" -o /tmp/cost-stream.bin || true
+curl -s --max-time 40 -H "Authorization: Bearer ${TOKEN}" \
+    "${BASE}/api/cameras/${CAMERA}/stream.mjpeg" -o /tmp/cost-stream.bin &
+STREAM_READER=$!
+
+# The supervisor restarts ffmpeg with the live output when a viewer arrives, so wait for the
+# new process before measuring it.
+sleep 8
+WATCHED_FFMPEG=$(pgrep -f "ffmpeg.*image2pipe" | head -1 || true)
+
+if [ -n "$WATCHED_FFMPEG" ]; then
+    WATCHED_CPU=$(measure_cpu "$WATCHED_FFMPEG" 15)
+    echo "with one viewer:  ${WATCHED_CPU}% of one core"
+    echo "the transcode costs ${WATCHED_CPU}% against ${IDLE_CPU}% idle, and that difference"
+    echo "used to be paid around the clock by every recording camera."
+else
+    echo "::warning::Could not find the transcoding ffmpeg to measure it."
+fi
+
+wait "$STREAM_READER" 2>/dev/null || true
 
 FRAMES=$(python3 - <<'PY'
 data = open('/tmp/cost-stream.bin', 'rb').read()
