@@ -59,6 +59,10 @@ product; everything else exists to support that.
 - RTSP cameras, added by address
 - ONVIF cameras, found automatically on the network
 
+**Watching**
+- Digital zoom on any camera: scroll or pinch to zoom, drag to move, double click to fit
+- Pan, tilt and zoom controls on cameras that report supporting them
+
 **Built for people who are not surveillance engineers**
 - A five-step first-run wizard with working defaults
 - Every advanced setting has a plain-language explanation behind a "What is this?" link
@@ -69,7 +73,10 @@ product; everything else exists to support that.
 - Cameras that produce MJPEG have their frames forwarded **without being decoded or re-encoded**
 - Network cameras recording continuously are written with the stream **copied**, not transcoded,
   from the same connection that serves the live view
-- Demand-driven capture: a camera nobody is watching and nothing is recording costs nothing
+- A camera that is only recording decodes nothing at all: measured at **0.8% of one core**,
+  against 13% while somebody is watching it
+- Hardware decoding is used when a decoder is found that actually works, proved by decoding a
+  test clip rather than by trusting what ffmpeg advertises
 - Motion detection runs on 1/8-scale luma recovered from each JPEG without fully decoding it
 
 **Private by design**
@@ -105,6 +112,9 @@ is aspirational.
 | RTSP cameras | Working | Pulled a live RTSP H.264 stream: transcoded for viewing, stream-copied for recording |
 | ONVIF discovery and PTZ | Built, not run against a real camera | ONVIF client is hand-written SOAP |
 | Recording and playback | Working | The published 1.0.1 build recorded a webcam, was hard-killed mid-write, and the segment still decoded 947 frames |
+| Recording cost | Measured | 0.8% of one core per recording 720p camera in CI, and 13% while it is being watched |
+| Digital zoom | Working | Driven in a real browser in CI against a streaming camera |
+| Hardware decoding | Built, no GPU to test on | CI proves it refuses every unusable method and falls back to software |
 | Motion detection | Working | Fired on a live camera and started a recording; decoder tested against real encoder output |
 | Home Assistant integration | Working | Loaded into Home Assistant 2026.2.3 in CI: 40 tests over the config flow and entities, plus hassfest |
 | MQTT discovery | Working | Against mosquitto in CI: 8 discovery entities, state, a command from outside, and the last will after a SIGKILL |
@@ -118,6 +128,9 @@ is aspirational.
 - **Native Android and iOS apps.** The browser camera covers the same ground today with nothing to
   install. The agent protocol is documented, so a native app is additive rather than a rewrite.
 - **Floor plans and drag-and-drop camera groups.** Groups work; the visual editors do not exist.
+- **Object detection.** VisionMesh detects motion, not people, cars or animals. If you want to be
+  told what moved rather than that something did, [Frigate](https://frigate.video/) does that well
+  and VisionMesh does not try to.
 
 ---
 

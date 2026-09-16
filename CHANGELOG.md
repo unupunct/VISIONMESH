@@ -7,6 +7,41 @@ and this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-16
+
+Everything here comes from one person's feedback after a week of running VisionMesh and then
+moving to Frigate. Every complaint was accurate.
+
+### Fixed
+
+- **A camera that is only recording no longer transcodes.** The MJPEG output was built into the
+  ffmpeg command line unconditionally, so a recording camera ran a full software H.264 decode and
+  re-encode of every frame, around the clock, for nobody. Recording copies the camera's own stream
+  and needs no decode at all. Measured in CI: **0.8% of one core** while recording, against 13.6%
+  while being watched — a difference that used to be paid continuously by every camera. Three
+  cameras recording was enough to pin a processor that otherwise idled at 2%.
+- **ffmpeg is now actually told to quit.** VisionMesh stops a camera by writing `q` to ffmpeg's
+  stdin, because a clean quit is what finalises the recording — but the command line also carried
+  `-nostdin`, so the quit was never read and every stop waited out the timeout and then killed the
+  process. Switching a recording camera to being watched took nine seconds; it now takes one.
+- **The integration is where HACS expects it.** HACS requires `custom_components/<domain>` at the
+  repository root, and there was no `hacs.json`. It is now at the root, with one. I had already
+  met the same rule with hassfest and worked around it in CI by copying the folder — making the
+  check pass while leaving real installs awkward, which is exactly the wrong way round.
+
+### Added
+
+- **Digital zoom on the live view.** Scroll or pinch to zoom, drag to move, double click to fit.
+  The only zoom before was PTZ, which does nothing on a fixed camera. It transforms the picture
+  already on screen, so nothing extra is asked of the server.
+- **Hardware decoding**, when a decoder is found that genuinely works. Nothing trusts
+  `ffmpeg -hwaccels`: a CI runner advertises seven methods and can use none of them, and a camera
+  that dies on start is worse than one that uses more processor. Each candidate is proved by
+  decoding a real H.264 clip before it is ever put in front of a camera, and the settings page
+  reports what was chosen.
+- Camera health reports `recordingOnly`, so a frame rate of zero reads as "not decoding" rather
+  than "broken".
+
 ### Added
 
 - MQTT discovery is now checked against a real mosquitto broker in CI. The parts worth getting
@@ -185,7 +220,8 @@ First release. Everything below is new.
 - Native Android and iOS applications. The browser camera covers the same ground.
 - Floor plans and drag-and-drop camera groups.
 
-[Unreleased]: https://github.com/unupunct/VISIONMESH/compare/v1.0.3...HEAD
+[Unreleased]: https://github.com/unupunct/VISIONMESH/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/unupunct/VISIONMESH/compare/v1.0.3...v1.1.0
 [1.0.3]: https://github.com/unupunct/VISIONMESH/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/unupunct/VISIONMESH/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/unupunct/VISIONMESH/compare/v1.0.0...v1.0.1
