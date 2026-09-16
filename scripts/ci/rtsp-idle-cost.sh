@@ -46,7 +46,21 @@ curl -sfL -o /tmp/mediamtx.tar.gz     "https://github.com/bluenviron/mediamtx/re
 tar -xzf /tmp/mediamtx.tar.gz -C /tmp mediamtx
 chmod +x /tmp/mediamtx
 
-/tmp/mediamtx > /tmp/mediamtx.log 2>&1 &
+# With no configuration mediamtx accepts no paths at all, and refuses a publisher with
+# "path 'camera' is not configured".
+cat > /tmp/mediamtx.yml <<'YAML'
+logLevel: info
+rtspAddress: 127.0.0.1:8554
+rtmp: no
+hls: no
+webrtc: no
+srt: no
+api: no
+paths:
+  all_others:
+YAML
+
+/tmp/mediamtx /tmp/mediamtx.yml > /tmp/mediamtx.log 2>&1 &
 
 # Probe the port rather than matching a log phrase, which changes between versions.
 for _ in $(seq 1 30); do
