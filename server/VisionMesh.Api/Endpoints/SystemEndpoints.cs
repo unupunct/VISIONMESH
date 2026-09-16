@@ -203,15 +203,26 @@ public static class SystemEndpoints
         .WithName("GetSystemHealth")
         .WithSummary("Server health, camera counts and storage.");
 
-        group.MapGet("/capabilities", async (SettingsRepository settings, FfmpegLocator ffmpegLocator, CancellationToken cancellationToken) =>
+        group.MapGet("/capabilities", async (
+            SettingsRepository settings,
+            FfmpegLocator ffmpegLocator,
+            HardwareAcceleration hardware,
+            CancellationToken cancellationToken) =>
         {
             var ffmpeg = await ffmpegLocator.LocateAsync(settings.Get(SettingsRepository.Keys.FfmpegPath), cancellationToken: cancellationToken);
+
+            // Reported rather than assumed: the decoder named here is one that was tested on this
+            // machine, so the settings page can say what is really being used.
+            var decoder = ffmpeg is { Available: true, Path: { } path }
+                ? await hardware.DetectAsync(path, cancellationToken: cancellationToken)
+                : HardwareDecoder.Software;
 
             // Clients use this to hide features that genuinely cannot work on this install,
             // rather than offering a button that fails when pressed.
             return Results.Ok(new
             {
                 ffmpeg = new { available = ffmpeg.Available, version = ffmpeg.Version, path = ffmpeg.Path },
+                hardwareDecoding = new { available = decoder.Available, method = decoder.Name, detail = decoder.Detail },
                 networkCameras = ffmpeg.Available,
                 recording = ffmpeg.Available,
                 onvifDiscovery = true,

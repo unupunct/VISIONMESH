@@ -53,6 +53,7 @@ public static class ApiSetup
         services.AddSingleton<CameraRuntimeRegistry>();
         services.AddSingleton<AgentRegistry>();
         services.AddSingleton<FfmpegLocator>();
+        services.AddSingleton<HardwareAcceleration>();
         services.AddSingleton<OnvifDiscovery>();
 
         // ---- realtime ----

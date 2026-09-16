@@ -27,6 +27,7 @@ public sealed class CameraSupervisor(
     FrameBus frameBus,
     CameraRuntimeRegistry runtimes,
     FfmpegLocator ffmpegLocator,
+    HardwareAcceleration hardware,
     SecretProtector secrets,
     IRealtimeNotifier notifier,
     ILogger<CameraSupervisor> log) : BackgroundService
@@ -286,7 +287,12 @@ public sealed class CameraSupervisor(
         var url = config.BuildAuthenticatedRtspUrl(password);
         if (url is null) return;
 
-        var source = new FfmpegPullSource(camera, url, config.Transport, ffmpeg.Path, frameBus, runtime, plan, liveOutput, log);
+        // Detected once and cached; the probe only runs on the first camera to need it.
+        var decoder = liveOutput
+            ? await hardware.DetectAsync(ffmpeg.Path, cancellationToken: cancellationToken).ConfigureAwait(false)
+            : HardwareDecoder.Software;
+
+        var source = new FfmpegPullSource(camera, url, config.Transport, ffmpeg.Path, frameBus, runtime, plan, liveOutput, decoder, log);
         if (!_pullSources.TryAdd(camera.Id, source))
         {
             await source.DisposeAsync().ConfigureAwait(false);

@@ -29,9 +29,11 @@ public class PullSourceArgumentTests
         DesiredQuality = quality,
     };
 
-    private static string[] Arguments(bool liveOutput, RecordingPlan? recording)
+    private static string[] Arguments(bool liveOutput, RecordingPlan? recording, HardwareDecoder? decoder = null)
         => FfmpegPullSource.BuildArguments(
-            Camera(), "rtsp://camera.example/stream", RtspTransport.Tcp, recording, liveOutput).ToArray();
+            Camera(), "rtsp://camera.example/stream", RtspTransport.Tcp, recording, liveOutput, decoder).ToArray();
+
+    private static HardwareDecoder Vaapi() => new("vaapi", "/dev/dri/renderD128", "test");
 
     private static RecordingPlan Plan() => new("/recordings/cam_test", 600);
 
@@ -104,6 +106,38 @@ public class PullSourceArgumentTests
     }
 
     [Fact]
+    public void AHardwareDecoderIsAskedForBeforeTheInput()
+    {
+        // -hwaccel is an input option. After -i it would be accepted and quietly ignored, which
+        // looks exactly like hardware decoding that is simply not helping.
+        var arguments = Arguments(liveOutput: true, recording: null, decoder: Vaapi());
+
+        var accel = Array.IndexOf(arguments, "-hwaccel");
+        Assert.True(accel >= 0, "The chosen decoder never reached the command line.");
+        Assert.Equal("vaapi", arguments[accel + 1]);
+        Assert.True(accel < Array.IndexOf(arguments, "-i"));
+
+        var device = Array.IndexOf(arguments, "-hwaccel_device");
+        Assert.True(device >= 0);
+        Assert.Equal("/dev/dri/renderD128", arguments[device + 1]);
+    }
+
+    [Fact]
+    public void RecordingAloneAsksForNoDecoderAtAll()
+    {
+        // A stream copy decodes nothing, so a decoder there would set up a pipeline nothing uses
+        // and give the machine one more thing to fail at for no benefit.
+        Assert.DoesNotContain("-hwaccel", Arguments(liveOutput: false, recording: Plan(), decoder: Vaapi()));
+    }
+
+    [Fact]
+    public void SoftwareDecodingAddsNothingToTheCommandLine()
+    {
+        Assert.DoesNotContain("-hwaccel", Arguments(liveOutput: true, recording: null, decoder: HardwareDecoder.Software));
+        Assert.DoesNotContain("-hwaccel", Arguments(liveOutput: true, recording: null, decoder: null));
+    }
+
+    [Fact]
     public void TheInputComesBeforeEveryOutput()
     {
         // ffmpeg applies output options to whatever follows the input. An output option that
@@ -125,7 +159,7 @@ public class PullSourceArgumentTests
             Camera(), "rtsp://camera.example/stream", RtspTransport.Tcp, "ffmpeg",
             new VisionMesh.Streaming.Fanout.FrameBus(),
             new VisionMesh.Streaming.Fanout.CameraRuntime("cam_test"),
-            recording: null, liveOutput: false,
+            recording: null, liveOutput: false, HardwareDecoder.Software,
             Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance));
     }
 }

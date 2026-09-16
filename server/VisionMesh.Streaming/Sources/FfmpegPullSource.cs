@@ -40,6 +40,7 @@ public sealed class FfmpegPullSource : IAsyncDisposable
     private readonly CameraRuntime _runtime;
     private readonly RecordingPlan? _recording;
     private readonly bool _liveOutput;
+    private readonly HardwareDecoder _decoder;
     private readonly ILogger _log;
     private readonly CancellationTokenSource _stop = new();
 
@@ -54,6 +55,7 @@ public sealed class FfmpegPullSource : IAsyncDisposable
         CameraRuntime runtime,
         RecordingPlan? recording,
         bool liveOutput,
+        HardwareDecoder decoder,
         ILogger log)
     {
         _camera = camera;
@@ -64,6 +66,7 @@ public sealed class FfmpegPullSource : IAsyncDisposable
         _runtime = runtime;
         _recording = recording;
         _liveOutput = liveOutput;
+        _decoder = decoder;
         _log = log;
 
         if (!liveOutput && recording is null)
@@ -287,7 +290,7 @@ public sealed class FfmpegPullSource : IAsyncDisposable
 
         if (_recording is { } plan) Directory.CreateDirectory(plan.Directory);
 
-        foreach (var argument in BuildArguments(_camera, _authenticatedUrl, _transport, _recording, _liveOutput))
+        foreach (var argument in BuildArguments(_camera, _authenticatedUrl, _transport, _recording, _liveOutput, _decoder))
         {
             info.ArgumentList.Add(argument);
         }
@@ -303,7 +306,8 @@ public sealed class FfmpegPullSource : IAsyncDisposable
     /// one. See <see cref="FfmpegPullSource"/> for why the live output is conditional.
     /// </summary>
     internal static IEnumerable<string> BuildArguments(
-        Camera camera, string url, RtspTransport transport, RecordingPlan? recording, bool liveOutput)
+        Camera camera, string url, RtspTransport transport, RecordingPlan? recording, bool liveOutput,
+        HardwareDecoder? decoder = null)
     {
         yield return "-hide_banner";
         yield return "-loglevel";
@@ -318,6 +322,23 @@ public sealed class FfmpegPullSource : IAsyncDisposable
         {
             yield return "-rtsp_transport";
             yield return transport == RtspTransport.Tcp ? "tcp" : "udp";
+        }
+
+        // Hardware decoding, but only when something is going to be decoded. A recording is a
+        // stream copy, so asking for a decoder there would set up a pipeline nothing uses and
+        // give a machine one more thing to fail at for no benefit.
+        //
+        // This is an input option and has to precede -i, which is why it sits here.
+        if (liveOutput && decoder is { Available: true })
+        {
+            yield return "-hwaccel";
+            yield return decoder.Name!;
+
+            if (decoder.Device is not null)
+            {
+                yield return "-hwaccel_device";
+                yield return decoder.Device;
+            }
         }
 
         yield return "-i";
