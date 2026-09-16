@@ -243,11 +243,14 @@ const main = async () => {
   dashboard.on('pageerror', (error) => fail(`Dashboard threw: ${error.message}`));
 
   await dashboard.goto(BASE);
+  await dashboard.waitForSelector('input[name="username"]', { timeout: 30_000 });
   await dashboard.fill('input[name="username"]', 'admin');
   await dashboard.fill('input[name="password"]', PASSWORD);
   await dashboard.getByRole('button', { name: 'Sign in' }).click();
 
-  await dashboard.goto(`${BASE}/#/cameras/${camera.id}`);
+  // The route is singular: #/camera/<id>.
+  await dashboard.waitForSelector('nav, .sidebar, main', { timeout: 30_000 });
+  await dashboard.goto(`${BASE}/#/camera/${camera.id}`);
   const frame = dashboard.locator('.camera-frame');
   await frame.waitFor({ state: 'visible', timeout: 30_000 });
 
