@@ -9,7 +9,6 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 from custom_components.visionmesh.api import VisionMeshError
-
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import STATE_UNAVAILABLE, Platform
 from homeassistant.core import HomeAssistant
