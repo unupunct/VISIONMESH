@@ -123,6 +123,27 @@ curl -sf -X PATCH "${BASE}/api/cameras/${CAMERA}" -H 'Content-Type: application/
     || fail "Could not turn recording on."
 echo "camera ${CAMERA} added and recording continuously, with nobody watching"
 
+# ---- what the server decided about hardware decoding ----
+
+# A CI runner has no GPU, so the only correct answer is software, reached by probing rather
+# than by trusting ffmpeg -hwaccels. Checking it on a machine with no hardware is the point:
+# this is the case that must never break streaming.
+CAPS=$(curl -sf -H "Authorization: Bearer ${TOKEN}" "${BASE}/api/system/capabilities")
+echo "hardware decoding: $(echo "$CAPS" | jq -c .hardwareDecoding)"
+
+HW_AVAILABLE=$(echo "$CAPS" | jq -r .hardwareDecoding.available)
+if [ -z "$HW_AVAILABLE" ] || [ "$HW_AVAILABLE" = "null" ]; then
+    fail "The server does not report anything about hardware decoding."
+fi
+
+if [ "$HW_AVAILABLE" = "true" ]; then
+    # Not wrong in itself, but on a runner it means the probe accepted something it should
+    # not have, which is worth being loud about.
+    echo "::warning::A hardware decoder was accepted on a machine with no GPU."
+else
+    echo "correctly fell back to software decoding"
+fi
+
 # ---- find VisionMesh's own ffmpeg ----
 
 VM_FFMPEG=""
