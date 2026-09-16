@@ -308,7 +308,11 @@ public sealed class FfmpegPullSource : IAsyncDisposable
         yield return "-hide_banner";
         yield return "-loglevel";
         yield return "warning";
-        yield return "-nostdin";
+
+        // Deliberately no -nostdin. VisionMesh stops ffmpeg by sending it 'q' on stdin, which is
+        // what finalises the recording, and -nostdin makes ffmpeg ignore stdin entirely -- so the
+        // quit was never read and every stop waited out the timeout and then killed the process.
+        // Stdin is a private pipe here, not the parent's terminal, so there is nothing to protect.
 
         if (url.StartsWith("rtsp", StringComparison.OrdinalIgnoreCase) && transport != RtspTransport.Auto)
         {
@@ -434,7 +438,10 @@ public sealed class FfmpegPullSource : IAsyncDisposable
                 // The pipe is already gone; fall through to waiting and then killing.
             }
 
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            // ffmpeg acts on 'q' almost immediately. Waiting much longer than that only delays
+            // the restart a viewer is waiting on, and segments are written fragmented precisely
+            // so that a stop which has to be forced still leaves a playable file.
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
             await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)

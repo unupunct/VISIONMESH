@@ -93,6 +93,17 @@ public class PullSourceArgumentTests
     }
 
     [Fact]
+    public void StdinIsLeftAloneSoFfmpegCanBeAskedToQuit()
+    {
+        // VisionMesh stops ffmpeg by writing 'q' to its stdin, which is what finalises the
+        // recording. -nostdin makes ffmpeg ignore stdin completely, so the quit was never read
+        // and every stop sat through the timeout and then killed the process -- which showed up
+        // as a nine second wait before a live view would appear.
+        Assert.DoesNotContain("-nostdin", Arguments(liveOutput: true, recording: Plan()));
+        Assert.DoesNotContain("-nostdin", Arguments(liveOutput: false, recording: Plan()));
+    }
+
+    [Fact]
     public void TheInputComesBeforeEveryOutput()
     {
         // ffmpeg applies output options to whatever follows the input. An output option that
