@@ -83,16 +83,16 @@ jobs:
         run: python -m pip install --quiet ruff
 
       - name: Check it parses
-        run: python -m compileall -q homeassistant/custom_components/visionmesh
+        run: python -m compileall -q custom_components/visionmesh
 
       - name: Lint
-        run: ruff check homeassistant
+        run: ruff check custom_components homeassistant
 
       - name: Check the manifest and translations are valid JSON
         run: |
           python - <<'PY'
           import json, pathlib
-          root = pathlib.Path('homeassistant/custom_components/visionmesh')
+          root = pathlib.Path('custom_components/visionmesh')
           manifest = json.loads((root / 'manifest.json').read_text())
           for key in ('domain', 'name', 'version', 'documentation', 'codeowners'):
               assert key in manifest, f'manifest.json is missing {key}'

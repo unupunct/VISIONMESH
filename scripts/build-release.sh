@@ -82,7 +82,7 @@ done
 # ---- home assistant integration ------------------------------------------------
 
 say "Packaging the Home Assistant integration"
-(cd homeassistant && zip -qr "../${OUT}/VisionMesh-HomeAssistant-Integration.zip" custom_components)
+zip -qr "${OUT}/VisionMesh-HomeAssistant-Integration.zip" custom_components
 
 # ---- checksums ------------------------------------------------------------------
 

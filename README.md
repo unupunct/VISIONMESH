@@ -210,9 +210,14 @@ exposed to the internet. See [docs/11-tailscale.md](docs/11-tailscale.md).
 
 ## Home Assistant
 
-Copy `homeassistant/custom_components/visionmesh` into your Home Assistant
-`config/custom_components` folder, restart, then add the VisionMesh integration and sign in with a
-VisionMesh account.
+**Through HACS.** Add `https://github.com/unupunct/VISIONMESH` as a custom repository of type
+*Integration*, install VisionMesh, and restart Home Assistant.
+
+**By hand.** Copy `custom_components/visionmesh` into your Home Assistant `config/custom_components`
+folder and restart.
+
+Either way, then add the VisionMesh integration and sign in with a VisionMesh account. A server on
+the same network announces itself, so it usually appears on the discovered devices card by name.
 
 Your cameras appear as camera entities with live video, plus sensors and switches for automations:
 

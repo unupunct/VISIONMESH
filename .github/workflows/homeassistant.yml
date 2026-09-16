@@ -9,11 +9,15 @@ on:
     branches: [main]
     paths:
       - "homeassistant/**"
+      - "custom_components/**"
+      - "hacs.json"
       - "server/VisionMesh.Api/Endpoints/HomeAssistantEndpoints.cs"
       - ".github/workflows/homeassistant.yml"
   pull_request:
     paths:
       - "homeassistant/**"
+      - "custom_components/**"
+      - "hacs.json"
       - "server/VisionMesh.Api/Endpoints/HomeAssistantEndpoints.cs"
       - ".github/workflows/homeassistant.yml"
   workflow_dispatch:
@@ -24,12 +28,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      # hassfest scans custom_components/ at the root of the workspace, and the integration
-      # lives under homeassistant/ so the repository layout stays readable. Putting a copy where
-      # it looks is cheaper than moving the integration to suit one validator.
-      - name: Put the integration where hassfest looks for it
-        run: cp -r homeassistant/custom_components .
 
       # hassfest is Home Assistant's own validator: manifest fields, config-flow registration,
       # dependency and requirement declarations, translation keys. It is the check every
