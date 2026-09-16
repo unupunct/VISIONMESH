@@ -38,6 +38,10 @@ public sealed class CameraSupervisor(
     private readonly ConcurrentDictionary<string, FfmpegPullSource> _pullSources = new(StringComparer.Ordinal);
     /// <summary>Recording plan each running pull source was started with, so changes can be detected.</summary>
     private readonly ConcurrentDictionary<string, RecordingPlan> _pullPlans = new(StringComparer.Ordinal);
+    /// <summary>Whether each running pull source was started with a live output, so changes can be detected.</summary>
+    private readonly ConcurrentDictionary<string, bool> _pullLive = new(StringComparer.Ordinal);
+    /// <summary>When something last wanted pictures from a camera, used to damp the live output on and off.</summary>
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _lastPictureDemand = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, DateTimeOffset> _idleSince = new(StringComparer.Ordinal);
     /// <summary>Cameras the user explicitly wants running regardless of viewers (manual recording, tests).</summary>
     private readonly ConcurrentDictionary<string, DateTimeOffset> _pinned = new(StringComparer.Ordinal);
@@ -196,22 +200,58 @@ public sealed class CameraSupervisor(
             case CameraSourceKind.Onvif:
             {
                 var wantedPlan = RecordingPlanner?.Invoke(camera);
+                var wantsPictures = WantsPictures(camera.Id, DateTimeOffset.UtcNow);
+
+                // Neither a viewer nor a recording means there is nothing for ffmpeg to produce.
+                if (!wantsPictures && wantedPlan is null) return;
+
                 if (_pullSources.ContainsKey(camera.Id))
                 {
-                    // Recording was turned on or off while the stream was running. The recording
-                    // output is part of the ffmpeg command line, so it can only change by restarting.
-                    if (Equals(_pullPlans.GetValueOrDefault(camera.Id), wantedPlan)) return;
+                    // Both the recording output and the live output are part of the ffmpeg command
+                    // line, so either changing can only take effect by restarting the process.
+                    var planSame = Equals(_pullPlans.GetValueOrDefault(camera.Id), wantedPlan);
+                    var liveSame = _pullLive.GetValueOrDefault(camera.Id) == wantsPictures;
+                    if (planSame && liveSame) return;
 
-                    log.LogInformation("Recording settings changed for camera {Camera}; restarting its stream.", camera.Id);
+                    log.LogInformation(
+                        planSame
+                            ? "Camera {Camera} is {Change}; restarting its stream."
+                            : "Recording settings changed for camera {Camera}; restarting its stream.",
+                        camera.Id,
+                        wantsPictures ? "being watched again" : "no longer being watched, so it will only record");
+
                     await StopCameraAsync(camera.Id, cancellationToken).ConfigureAwait(false);
                 }
-                await StartPullSourceAsync(camera, runtime, wantedPlan, cancellationToken).ConfigureAwait(false);
+                await StartPullSourceAsync(camera, runtime, wantedPlan, wantsPictures, cancellationToken).ConfigureAwait(false);
                 break;
             }
         }
     }
 
-    private async Task StartPullSourceAsync(Camera camera, CameraRuntime runtime, RecordingPlan? plan, CancellationToken cancellationToken)
+    /// <summary>
+    /// Whether anything actually wants decoded pictures from this camera right now.
+    ///
+    /// Every consumer of pictures subscribes to the frame bus - the live stream, a snapshot,
+    /// motion detection, a motion or manual recording, the diagnostics - so one number answers
+    /// it. Continuous and scheduled recording are deliberately absent from that list: they copy
+    /// the camera's own stream and never need a frame decoded.
+    ///
+    /// The answer is held true for the idle grace after the last consumer leaves, because
+    /// turning the live output off costs a restart and nobody wants that every time a dashboard
+    /// page is closed and reopened.
+    /// </summary>
+    private bool WantsPictures(string cameraId, DateTimeOffset now)
+    {
+        if (frameBus.GetSubscriberCount(cameraId) > 0 || _pinned.ContainsKey(cameraId))
+        {
+            _lastPictureDemand[cameraId] = now;
+            return true;
+        }
+
+        return _lastPictureDemand.TryGetValue(cameraId, out var last) && now - last < IdleGrace;
+    }
+
+    private async Task StartPullSourceAsync(Camera camera, CameraRuntime runtime, RecordingPlan? plan, bool liveOutput, CancellationToken cancellationToken)
     {
         var ffmpeg = await ffmpegLocator.LocateAsync(settings.Get(SettingsRepository.Keys.FfmpegPath), cancellationToken: cancellationToken).ConfigureAwait(false);
         if (!ffmpeg.Available || ffmpeg.Path is null)
@@ -246,7 +286,7 @@ public sealed class CameraSupervisor(
         var url = config.BuildAuthenticatedRtspUrl(password);
         if (url is null) return;
 
-        var source = new FfmpegPullSource(camera, url, config.Transport, ffmpeg.Path, frameBus, runtime, plan, log);
+        var source = new FfmpegPullSource(camera, url, config.Transport, ffmpeg.Path, frameBus, runtime, plan, liveOutput, log);
         if (!_pullSources.TryAdd(camera.Id, source))
         {
             await source.DisposeAsync().ConfigureAwait(false);
@@ -255,6 +295,7 @@ public sealed class CameraSupervisor(
 
         if (plan is null) _pullPlans.TryRemove(camera.Id, out _);
         else _pullPlans[camera.Id] = plan;
+        _pullLive[camera.Id] = liveOutput;
 
         runtime.StartedUtc = DateTimeOffset.UtcNow;
         source.Start();
@@ -287,6 +328,7 @@ public sealed class CameraSupervisor(
     private async Task StopCameraAsync(string cameraId, CancellationToken cancellationToken)
     {
         _pullPlans.TryRemove(cameraId, out _);
+        _pullLive.TryRemove(cameraId, out _);
         if (_pullSources.TryRemove(cameraId, out var source)) await source.DisposeAsync().ConfigureAwait(false);
 
         foreach (var connection in agents.All)

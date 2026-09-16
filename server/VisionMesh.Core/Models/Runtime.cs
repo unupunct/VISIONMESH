@@ -23,6 +23,13 @@ public sealed class CameraHealth
     public DateTimeOffset? LastFrameUtc { get; set; }
     public DateTimeOffset? LastHeartbeatUtc { get; set; }
     public bool Recording { get; set; }
+
+    /// <summary>
+    /// Recording without decoding. Frame rate and bitrate are absent in this state because
+    /// nothing is producing pictures, not because the camera is unwell.
+    /// </summary>
+    public bool RecordingOnly { get; set; }
+
     public int ViewerCount { get; set; }
     public string? LastError { get; set; }
     /// <summary>Battery percent for phone cameras that report it. Null when not applicable.</summary>

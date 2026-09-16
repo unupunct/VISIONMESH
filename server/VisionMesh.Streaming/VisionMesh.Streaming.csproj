@@ -14,4 +14,11 @@
     <ProjectReference Include="..\VisionMesh.Core\VisionMesh.Core.csproj" />
     <ProjectReference Include="..\VisionMesh.Database\VisionMesh.Database.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- The ffmpeg command line decides how much processor a camera costs, so the tests need to
+         be able to read it without the arguments becoming public API. -->
+    <InternalsVisibleTo Include="VisionMesh.Tests" />
+  </ItemGroup>
+
 </Project>

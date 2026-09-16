@@ -119,3 +119,34 @@ jobs:
       - name: Stop the server
         if: always()
         run: pkill -f VisionMesh || true
+
+  idle-cost:
+    name: What a recording camera costs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Build the server
+        run: dotnet build server/VisionMesh.Server/VisionMesh.Server.csproj -c Release
+
+      - name: Measure a camera that is only recording
+        run: |
+          chmod +x scripts/ci/rtsp-idle-cost.sh
+          ./scripts/ci/rtsp-idle-cost.sh
+
+      - name: Logs
+        if: always()
+        run: |
+          echo "──────── server ────────"
+          grep -iE "camera|stream|record|warn|fail" /tmp/vm-cost-server.log 2>/dev/null | tail -30 || true
+          echo "──────── publisher ────────"
+          tail -10 /tmp/publisher.log 2>/dev/null || true

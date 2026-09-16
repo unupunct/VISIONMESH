@@ -34,6 +34,15 @@ public sealed class CameraRuntime
     public string? LastError { get; set; }
     public long? DroppedFrames { get; set; }
     public bool Recording { get; set; }
+
+    /// <summary>
+    /// True when this camera is being recorded without anything decoding it.
+    ///
+    /// Recording copies the camera's own stream, so it needs no decode. When nothing else wants
+    /// pictures - no viewer, no motion detection, no snapshot - there is no reason to run one,
+    /// and the frame counters stay at zero on purpose rather than because something is broken.
+    /// </summary>
+    public bool RecordingOnly { get; set; }
     public int? BatteryPercent { get; set; }
     public bool? BatteryCharging { get; set; }
     public string? NetworkQuality { get; set; }
@@ -132,6 +141,7 @@ public sealed class CameraRuntime
         LastFrameUtc = LastFrameUtc,
         LastHeartbeatUtc = LastHeartbeatUtc,
         Recording = Recording,
+        RecordingOnly = RecordingOnly,
         ViewerCount = viewerCount,
         LastError = LastError,
         BatteryPercent = BatteryPercent,

@@ -17,8 +17,14 @@ namespace VisionMesh.Streaming.Sources;
 /// and the bytes that come out are exactly what the browser and the frame bus already speak.
 ///
 /// This is a transcode, and it is honest about being one - an H.264 camera cannot be forwarded
-/// as MJPEG without re-encoding. Recording takes a separate path that copies the original
-/// stream without touching the codec.
+/// as MJPEG without re-encoding. It is also the single most expensive thing VisionMesh does, so
+/// it is only asked for when something actually wants pictures: a viewer, motion detection, a
+/// snapshot. A camera that is merely recording runs with the recording output alone, and ffmpeg
+/// copies the camera's own stream without decoding a single frame.
+///
+/// That distinction is the difference between a few percent of a core per camera and a whole
+/// one. It was reported by someone running three cameras: recording alone pinned the processor,
+/// because the transcode used to be built unconditionally and ran all day for nobody.
 /// </summary>
 public sealed class FfmpegPullSource : IAsyncDisposable
 {
@@ -33,6 +39,7 @@ public sealed class FfmpegPullSource : IAsyncDisposable
     private readonly IFrameBus _frameBus;
     private readonly CameraRuntime _runtime;
     private readonly RecordingPlan? _recording;
+    private readonly bool _liveOutput;
     private readonly ILogger _log;
     private readonly CancellationTokenSource _stop = new();
 
@@ -46,6 +53,7 @@ public sealed class FfmpegPullSource : IAsyncDisposable
         IFrameBus frameBus,
         CameraRuntime runtime,
         RecordingPlan? recording,
+        bool liveOutput,
         ILogger log)
     {
         _camera = camera;
@@ -55,7 +63,15 @@ public sealed class FfmpegPullSource : IAsyncDisposable
         _frameBus = frameBus;
         _runtime = runtime;
         _recording = recording;
+        _liveOutput = liveOutput;
         _log = log;
+
+        if (!liveOutput && recording is null)
+        {
+            throw new ArgumentException(
+                "A pull source with neither a live output nor a recording would give ffmpeg nothing to write.",
+                nameof(liveOutput));
+        }
     }
 
     public string CameraId => _camera.Id;
@@ -127,6 +143,27 @@ public sealed class FfmpegPullSource : IAsyncDisposable
         process.BeginErrorReadLine();
 
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        if (!_liveOutput)
+        {
+            // Recording only: nothing is decoding, so there are no frames to wait for and the
+            // frame watchdog would kill a perfectly healthy ffmpeg every twenty seconds.
+            _runtime.RecordingOnly = true;
+            try
+            {
+                await RunRecordingOnlyAsync(process, linked.Token).ConfigureAwait(false);
+            }
+            finally
+            {
+                _runtime.RecordingOnly = false;
+                linked.Cancel();
+                await StopGracefullyAsync(process).ConfigureAwait(false);
+            }
+
+            ThrowIfFfmpegComplained(stderr, cancellationToken);
+            return;
+        }
+
         var watchdog = StartWatchdogAsync(process, linked);
 
         try
@@ -163,24 +200,83 @@ public sealed class FfmpegPullSource : IAsyncDisposable
             await StopGracefullyAsync(process).ConfigureAwait(false);
         }
 
+        ThrowIfFfmpegComplained(stderr, cancellationToken);
+    }
+
+    /// <summary>
+    /// Supervises a recording-only run, where the health signal is the archive growing rather
+    /// than frames arriving.
+    ///
+    /// ffmpeg is copying the camera's stream straight to disk, so a stalled camera shows up as a
+    /// file that stops getting bigger. That is the same fault the frame watchdog catches, read
+    /// from the only evidence this mode produces.
+    /// </summary>
+    private async Task RunRecordingOnlyAsync(Process process, CancellationToken cancellationToken)
+    {
+        var directory = _recording!.Directory;
+        var lastSize = -1L;
+        var lastGrowth = DateTimeOffset.UtcNow;
+
+        while (!cancellationToken.IsCancellationRequested && !process.HasExited)
+        {
+            try { await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken).ConfigureAwait(false); }
+            catch (OperationCanceledException) { return; }
+
+            var size = ArchiveSize(directory);
+            if (size > lastSize)
+            {
+                lastSize = size;
+                lastGrowth = DateTimeOffset.UtcNow;
+
+                // Bytes on disk are proof the camera is delivering, which is all Online claims.
+                _runtime.State = CameraState.Online;
+                _runtime.LastError = null;
+                continue;
+            }
+
+            if (DateTimeOffset.UtcNow - lastGrowth <= FrameWatchdog) continue;
+
+            _log.LogWarning(
+                "Camera {Camera} has written nothing for {Seconds} seconds while recording; restarting it.",
+                _camera.Id, (int)FrameWatchdog.TotalSeconds);
+            return;
+        }
+    }
+
+    private static long ArchiveSize(string directory)
+    {
+        try
+        {
+            return new DirectoryInfo(directory).Exists
+                ? new DirectoryInfo(directory).EnumerateFiles("*.mp4").Sum(file => file.Length)
+                : 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Unreadable for a moment is not a stall; treat it as no news.
+            return -1;
+        }
+    }
+
+    private void ThrowIfFfmpegComplained(StringBuilder stderr, CancellationToken cancellationToken)
+    {
         string tail;
         lock (stderr) tail = stderr.ToString().Trim();
 
-        if (!cancellationToken.IsCancellationRequested && tail.Length > 0)
-        {
-            // ffmpeg echoes the input URL in its diagnostics, which would leak the RTSP password
-            // into our logs and into the camera health panel. Strip it before it goes anywhere.
-            var safe = Sanitise(tail);
-            _runtime.LastError = safe.Length > 300 ? safe[^300..] : safe;
-            throw new InvalidOperationException(_runtime.LastError);
-        }
+        if (cancellationToken.IsCancellationRequested || tail.Length == 0) return;
+
+        // ffmpeg echoes the input URL in its diagnostics, which would leak the RTSP password
+        // into our logs and into the camera health panel. Strip it before it goes anywhere.
+        var safe = Sanitise(tail);
+        _runtime.LastError = safe.Length > 300 ? safe[^300..] : safe;
+        throw new InvalidOperationException(_runtime.LastError);
     }
 
     private ProcessStartInfo BuildStartInfo()
     {
         var info = new ProcessStartInfo(_ffmpegPath)
         {
-            RedirectStandardOutput = true,
+            RedirectStandardOutput = _liveOutput,
             RedirectStandardError = true,
             // ffmpeg quits cleanly when it reads 'q' on stdin, and a clean quit is what finalises
             // the MP4 being recorded. Killing it instead leaves a file with no moov atom.
@@ -189,57 +285,84 @@ public sealed class FfmpegPullSource : IAsyncDisposable
             CreateNoWindow = true,
         };
 
-        void Add(string argument) => info.ArgumentList.Add(argument);
+        if (_recording is { } plan) Directory.CreateDirectory(plan.Directory);
 
-        Add("-hide_banner");
-        Add("-loglevel"); Add("warning");
-        Add("-nostdin");
-
-        if (_authenticatedUrl.StartsWith("rtsp", StringComparison.OrdinalIgnoreCase) && _transport != RtspTransport.Auto)
+        foreach (var argument in BuildArguments(_camera, _authenticatedUrl, _transport, _recording, _liveOutput))
         {
-            Add("-rtsp_transport");
-            Add(_transport == RtspTransport.Tcp ? "tcp" : "udp");
-        }
-
-        Add("-i"); Add(_authenticatedUrl);
-
-        // Output 1: MJPEG on stdout for live viewing. This is a transcode and cannot avoid being
-        // one, because no browser plays raw H.264 out of a pipe without a full player stack.
-        Add("-an");     // surveillance live view is video only; audio would double the work for nothing
-        Add("-sn");
-        Add("-f"); Add("image2pipe");
-        Add("-vcodec"); Add("mjpeg");
-        Add("-q:v"); Add(MapQuality(_camera.DesiredQuality).ToString(CultureInfo.InvariantCulture));
-
-        if (_camera.DesiredFps > 0)
-        {
-            Add("-r");
-            Add(_camera.DesiredFps.ToString(CultureInfo.InvariantCulture));
-        }
-
-        if (_camera.DesiredWidth > 0 && _camera.DesiredHeight > 0)
-        {
-            // force_original_aspect_ratio=decrease keeps the picture undistorted when the camera's
-            // native aspect ratio differs from the requested box.
-            Add("-vf");
-            Add($"scale={_camera.DesiredWidth}:{_camera.DesiredHeight}:force_original_aspect_ratio=decrease");
-        }
-
-        Add("-");
-
-        // Output 2: the recording, written straight from the camera's own encoded stream.
-        // -c copy means the archive keeps full source quality at zero CPU cost, and the whole
-        // camera still only holds one RTSP session open - many cameras allow very few.
-        if (_recording is { } plan)
-        {
-            Directory.CreateDirectory(plan.Directory);
-
-            Add("-c"); Add("copy");
-            Add("-an");
-            foreach (var argument in plan.BuildSegmentArguments()) Add(argument);
+            info.ArgumentList.Add(argument);
         }
 
         return info;
+    }
+
+    /// <summary>
+    /// The ffmpeg command line for one network camera.
+    ///
+    /// Separated from process creation so it can be tested, because which outputs appear here is
+    /// the difference between a camera costing a few percent of a processor and costing all of
+    /// one. See <see cref="FfmpegPullSource"/> for why the live output is conditional.
+    /// </summary>
+    internal static IEnumerable<string> BuildArguments(
+        Camera camera, string url, RtspTransport transport, RecordingPlan? recording, bool liveOutput)
+    {
+        yield return "-hide_banner";
+        yield return "-loglevel";
+        yield return "warning";
+        yield return "-nostdin";
+
+        if (url.StartsWith("rtsp", StringComparison.OrdinalIgnoreCase) && transport != RtspTransport.Auto)
+        {
+            yield return "-rtsp_transport";
+            yield return transport == RtspTransport.Tcp ? "tcp" : "udp";
+        }
+
+        yield return "-i";
+        yield return url;
+
+        // Output 1: MJPEG on stdout for live viewing. This is a transcode and cannot avoid being
+        // one, because no browser plays raw H.264 out of a pipe without a full player stack.
+        //
+        // Only asked for when something is actually going to look at the pictures. Built
+        // unconditionally, a camera that is merely recording decodes and re-encodes every frame
+        // for nobody, which is the most expensive thing this program can do.
+        if (liveOutput)
+        {
+            yield return "-an";     // video only; audio would double the work for nothing
+            yield return "-sn";
+            yield return "-f";
+            yield return "image2pipe";
+            yield return "-vcodec";
+            yield return "mjpeg";
+            yield return "-q:v";
+            yield return MapQuality(camera.DesiredQuality).ToString(CultureInfo.InvariantCulture);
+
+            if (camera.DesiredFps > 0)
+            {
+                yield return "-r";
+                yield return camera.DesiredFps.ToString(CultureInfo.InvariantCulture);
+            }
+
+            if (camera.DesiredWidth > 0 && camera.DesiredHeight > 0)
+            {
+                // force_original_aspect_ratio=decrease keeps the picture undistorted when the
+                // camera's native aspect ratio differs from the requested box.
+                yield return "-vf";
+                yield return $"scale={camera.DesiredWidth}:{camera.DesiredHeight}:force_original_aspect_ratio=decrease";
+            }
+
+            yield return "-";
+        }
+
+        // Output 2: the recording, written straight from the camera's own encoded stream.
+        // -c copy keeps full source quality and decodes nothing, and the whole camera still only
+        // holds one RTSP session open - many cameras allow very few.
+        if (recording is { } plan)
+        {
+            yield return "-c";
+            yield return "copy";
+            yield return "-an";
+            foreach (var argument in plan.BuildSegmentArguments()) yield return argument;
+        }
     }
 
     /// <summary>Maps the 1-100 quality the UI shows onto ffmpeg's inverted 2-31 mjpeg scale.</summary>
