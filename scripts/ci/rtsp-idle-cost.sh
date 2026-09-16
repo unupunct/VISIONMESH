@@ -47,9 +47,14 @@ tar -xzf /tmp/mediamtx.tar.gz -C /tmp mediamtx
 chmod +x /tmp/mediamtx
 
 /tmp/mediamtx > /tmp/mediamtx.log 2>&1 &
-sleep 3
-grep -qi "listener opened" /tmp/mediamtx.log || { cat /tmp/mediamtx.log; fail "mediamtx did not start."; }
-echo "mediamtx listening"
+
+# Probe the port rather than matching a log phrase, which changes between versions.
+for _ in $(seq 1 30); do
+    timeout 1 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8554' 2>/dev/null && break
+    sleep 1
+done
+timeout 1 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8554' 2>/dev/null     || { cat /tmp/mediamtx.log; fail "Nothing is listening on 8554."; }
+echo "mediamtx listening on 8554"
 
 # A real H.264 stream, published the way a camera would.
 (
@@ -60,12 +65,17 @@ echo "mediamtx listening"
 ) &
 echo $! > /tmp/publisher.pid
 
+# Confirm the stream by reading it, which does not depend on anyone's log wording.
+PUBLISHED=no
 for _ in $(seq 1 30); do
-    grep -qi "is publishing" /tmp/mediamtx.log && break
-    sleep 1
+    if ffprobe -v error -rtsp_transport tcp -i "$RTSP"         -show_entries stream=codec_name,width,height -of csv=p=0 > /tmp/probe.txt 2>&1; then
+        PUBLISHED=yes
+        break
+    fi
+    sleep 2
 done
-grep -qi "is publishing" /tmp/mediamtx.log     || { tail -20 /tmp/mediamtx.log; tail -20 /tmp/publisher.log; fail "Nothing is publishing to ${RTSP}."; }
-echo "publishing to ${RTSP}"
+[ "$PUBLISHED" = yes ]     || { tail -20 /tmp/mediamtx.log; tail -20 /tmp/publisher.log; fail "Nothing is publishing to ${RTSP}."; }
+echo "publishing to ${RTSP}: $(cat /tmp/probe.txt)"
 
 # ---- server ----
 
