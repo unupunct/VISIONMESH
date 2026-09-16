@@ -603,3 +603,35 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
+
+/* ---- digital zoom ---- */
+
+.camera-frame { overflow: hidden; }
+
+.zoom-bar {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius);
+  background: rgba(5, 8, 12, 0.72);
+  backdrop-filter: blur(4px);
+}
+
+.zoom-bar button {
+  min-width: 30px;
+  padding: 3px 8px;
+  font-size: 0.85rem;
+  line-height: 1.2;
+}
+
+.zoom-level {
+  min-width: 42px;
+  text-align: center;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}

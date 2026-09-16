@@ -8,6 +8,7 @@
 
 import { api, streamUrl, snapshotUrl } from '../api.js';
 import { store, on, refreshCameras } from '../store.js';
+import { attachZoom } from '../zoom.js';
 import {
   el, clear, notice, toast, loading, stateBadge, field, textInput, select,
   formatBitrate, formatDateTime, confirmDialog, openModal, explain, icon, mount } from '../ui.js';
@@ -17,7 +18,29 @@ export async function renderCameraDetail(content, [cameraId]) {
 
   const image = el('img', {
     alt: `Live view of ${camera.name}`,
-    style: { width: '100%', maxHeight: '70vh', objectFit: 'contain', background: '#05080c', borderRadius: 'var(--radius)' },
+    style: { width: '100%', maxHeight: '70vh', objectFit: 'contain', background: '#05080c', display: 'block' },
+  });
+
+  // The zoom transforms the picture inside this box, so the box is what clips it.
+  const frame = el('div', {
+    class: 'camera-frame',
+    style: { position: 'relative', background: '#05080c', borderRadius: 'var(--radius)' },
+  }, image);
+
+  const zoomLabel = el('span', { class: 'zoom-level' }, '1.0x');
+  const zoomBar = el('div', { class: 'zoom-bar', hidden: true },
+    el('button', { title: 'Zoom out', onclick: () => zoom.zoomOut() }, '−'),
+    zoomLabel,
+    el('button', { title: 'Zoom in', onclick: () => zoom.zoomIn() }, '+'),
+    el('button', { title: 'Fit the whole picture', onclick: () => zoom.reset() }, 'Fit'));
+  frame.append(zoomBar);
+
+  const zoom = attachZoom(frame, image, {
+    onChange: (scale) => {
+      zoomLabel.textContent = `${scale.toFixed(1)}x`;
+      // The controls only earn their space once there is something to undo.
+      zoomBar.hidden = scale <= 1;
+    },
   });
 
   const statsRow = el('div', { class: 'stat-strip' });
@@ -34,7 +57,8 @@ export async function renderCameraDetail(content, [cameraId]) {
         [camera.groupName, camera.deviceName, humaniseSource(camera.sourceKind)].filter(Boolean).join(' · '))),
     el('button', { onclick: () => { location.hash = '#/cameras'; } }, '← All cameras'));
 
-  mount(clear(content), head, el('div', { class: 'card', style: { padding: '10px' } }, image), statsRow, controls, panels);
+  mount(clear(content), head, el('div', { class: 'card', style: { padding: '10px' } }, frame,
+    el('p', { class: 'hint' }, 'Scroll or pinch to zoom, drag to move, double click to fit.')), statsRow, controls, panels);
 
   function startStream() {
     if (camera.privacyMode) {
@@ -47,6 +71,7 @@ export async function renderCameraDetail(content, [cameraId]) {
 
   function stopStream() {
     image.src = '';
+    zoom.reset();
   }
 
   function refreshHeader() {

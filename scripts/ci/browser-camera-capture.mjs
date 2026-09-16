@@ -237,8 +237,78 @@ const main = async () => {
       + 'profile box, so the scaling is wrong.');
   }
 
+  // ---- the dashboard's digital zoom, on a camera that is genuinely streaming ----
+
+  const dashboard = await context.newPage();
+  dashboard.on('pageerror', (error) => fail(`Dashboard threw: ${error.message}`));
+
+  await dashboard.goto(BASE);
+  await dashboard.fill('input[name="username"]', 'admin');
+  await dashboard.fill('input[name="password"]', PASSWORD);
+  await dashboard.getByRole('button', { name: 'Sign in' }).click();
+
+  await dashboard.goto(`${BASE}/#/cameras/${camera.id}`);
+  const frame = dashboard.locator('.camera-frame');
+  await frame.waitFor({ state: 'visible', timeout: 30_000 });
+
+  const picture = frame.locator('img');
+  const transformOf = () => picture.evaluate((node) => getComputedStyle(node).transform);
+
+  // At rest the picture must be untouched, or every camera would open subtly wrong.
+  const atRest = await transformOf();
+  if (atRest !== 'none' && atRest !== 'matrix(1, 0, 0, 1, 0, 0)') {
+    fail(`A camera should open unzoomed, but its transform is ${atRest}.`);
+  }
+
+  await expectHidden(dashboard, '.zoom-bar', true, 'The zoom controls should stay out of the way until something is zoomed.');
+
+  const box = (await frame.boundingBox()) ?? fail('The camera frame has no size.');
+  await dashboard.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await dashboard.mouse.wheel(0, -400);
+  await dashboard.waitForTimeout(300);
+
+  const zoomed = await transformOf();
+  const scaleOf = (value) => Number((value.match(/matrix\(([^,]+)/) ?? [])[1] ?? 1);
+  if (!(scaleOf(zoomed) > 1.05)) fail(`Scrolling did not zoom in; transform is ${zoomed}.`);
+  console.log(`zoomed to ${scaleOf(zoomed).toFixed(2)}x by scrolling`);
+
+  await expectHidden(dashboard, '.zoom-bar', false, 'The zoom controls should appear once zoomed.');
+
+  const label = (await dashboard.locator('.zoom-level').textContent())?.trim();
+  if (!label || !label.endsWith('x')) fail(`The zoom indicator reads ${label}.`);
+  console.log(`indicator reads ${label}`);
+
+  // Panning must not be able to drag the picture off into empty space.
+  await dashboard.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await dashboard.mouse.down();
+  await dashboard.mouse.move(box.x + box.width * 4, box.y + box.height * 4, { steps: 8 });
+  await dashboard.mouse.up();
+  await dashboard.waitForTimeout(200);
+
+  const panned = (await transformOf()).match(/matrix\(([^)]+)\)/)?.[1].split(',').map(Number) ?? [];
+  const [, , , , translateX, translateY] = panned;
+  if (translateX > 0.5 || translateY > 0.5) {
+    fail(`Panning left a gap: the picture is offset to ${translateX}, ${translateY}.`);
+  }
+  console.log('panning stays inside the picture');
+
+  await frame.dblclick();
+  await dashboard.waitForTimeout(300);
+  const reset = await transformOf();
+  if (scaleOf(reset) > 1.01) fail(`Double click should fit the whole picture, but the scale is ${scaleOf(reset)}.`);
+  console.log('double click fits the picture again');
+
   await browser.close();
-  console.log('The browser camera captured real frames and the server served them.');
+  console.log('The browser camera captured real frames, the server served them, and the viewer zooms.');
 };
+
+/** Playwright treats [hidden] as hidden, which is exactly the assertion wanted here. */
+async function expectHidden(page, selector, shouldBeHidden, message) {
+  const hidden = await page.locator(selector).evaluate(
+    (node) => node.hasAttribute('hidden'),
+  ).catch(() => true);
+
+  if (hidden !== shouldBeHidden) fail(message);
+}
 
 main().catch((error) => fail(error.stack || String(error)));
