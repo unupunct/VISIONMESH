@@ -28,7 +28,7 @@ BUDGET_PERCENT=25
 cleanup() {
     pkill -f "VisionMesh.Server" 2>/dev/null || true
     [ -f /tmp/publisher.pid ] && kill "$(cat /tmp/publisher.pid)" 2>/dev/null || true
-    pkill -f "rtsp_flags listen" 2>/dev/null || true
+    pkill -f mediamtx 2>/dev/null || true
     pkill -f ffmpeg 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -39,21 +39,33 @@ rm -rf "$DATA"; mkdir -p "$DATA"
 
 # ---- a camera to point at ----
 
-# ffmpeg can be the RTSP server itself, which keeps this to one dependency. The listener ends when
-# its client disconnects, and VisionMesh restarts its own ffmpeg when a viewer arrives, so the
-# publisher runs in a loop to be there for the reconnect.
+# mediamtx is a real RTSP server rather than something improvised out of ffmpeg, which also makes
+# the thing VisionMesh talks to an independent implementation.
+MEDIAMTX_VERSION=v1.20.1
+curl -sfL -o /tmp/mediamtx.tar.gz     "https://github.com/bluenviron/mediamtx/releases/download/${MEDIAMTX_VERSION}/mediamtx_${MEDIAMTX_VERSION}_linux_amd64.tar.gz"     || fail "Could not download mediamtx."
+tar -xzf /tmp/mediamtx.tar.gz -C /tmp mediamtx
+chmod +x /tmp/mediamtx
+
+/tmp/mediamtx > /tmp/mediamtx.log 2>&1 &
+sleep 3
+grep -qi "listener opened" /tmp/mediamtx.log || { cat /tmp/mediamtx.log; fail "mediamtx did not start."; }
+echo "mediamtx listening"
+
+# A real H.264 stream, published the way a camera would.
 (
     while true; do
-        ffmpeg -nostdin -hide_banner -loglevel error \
-            -re -f lavfi -i testsrc2=size=1280x720:rate=15 \
-            -c:v libx264 -preset ultrafast -tune zerolatency -g 30 -pix_fmt yuv420p \
-            -f rtsp -rtsp_flags listen "$RTSP" >> /tmp/publisher.log 2>&1 || true
+        ffmpeg -nostdin -hide_banner -loglevel error             -re -f lavfi -i testsrc2=size=1280x720:rate=15             -c:v libx264 -preset ultrafast -tune zerolatency -g 30 -pix_fmt yuv420p             -f rtsp -rtsp_transport tcp "$RTSP" >> /tmp/publisher.log 2>&1 || true
         sleep 1
     done
 ) &
 echo $! > /tmp/publisher.pid
-sleep 3
-echo "RTSP publisher listening on ${RTSP}"
+
+for _ in $(seq 1 30); do
+    grep -qi "is publishing" /tmp/mediamtx.log && break
+    sleep 1
+done
+grep -qi "is publishing" /tmp/mediamtx.log     || { tail -20 /tmp/mediamtx.log; tail -20 /tmp/publisher.log; fail "Nothing is publishing to ${RTSP}."; }
+echo "publishing to ${RTSP}"
 
 # ---- server ----
 
