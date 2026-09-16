@@ -183,8 +183,16 @@ STREAM_READER=$!
 
 # The supervisor restarts ffmpeg with the live output when a viewer arrives, so wait for the
 # new process before measuring it.
-sleep 8
-WATCHED_FFMPEG=$(pgrep -f "ffmpeg.*image2pipe" | head -1 || true)
+# Switching a recording camera back to transcoding restarts ffmpeg, and the old process is
+# asked to quit politely first so its segment is finalised, so this is not instant.
+WATCHED_FFMPEG=""
+SWITCH_START=$(date +%s)
+for _ in $(seq 1 25); do
+    WATCHED_FFMPEG=$(pgrep -f "ffmpeg.*image2pipe" | head -1 || true)
+    [ -n "$WATCHED_FFMPEG" ] && break
+    sleep 1
+done
+echo "took $(( $(date +%s) - SWITCH_START ))s to start transcoding after the viewer arrived"
 
 if [ -n "$WATCHED_FFMPEG" ]; then
     WATCHED_CPU=$(measure_cpu "$WATCHED_FFMPEG" 15)
